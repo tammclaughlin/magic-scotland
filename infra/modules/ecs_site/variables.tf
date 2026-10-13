@@ -27,7 +27,7 @@ variable "image_tag" {
 variable "cpu_architecture" {
   description = "X86_64 or ARM64 - must match how the image was built."
   type        = string
-  default     = "X86_64"
+  default     = "ARM64"
 }
 
 variable "task_cpu" {
@@ -43,6 +43,18 @@ variable "task_memory" {
 variable "desired_count" {
   type    = number
   default = 1
+}
+
+variable "enable_alb" {
+  description = "Final step: put an Application Load Balancer in front of the tasks."
+  type        = bool
+  default     = false
+}
+
+variable "web_allowed_cidrs" {
+  description = "Who may reach the load balancer on 80/443."
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
 }
 
 variable "app_policy_arn" {

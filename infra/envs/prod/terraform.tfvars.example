@@ -1,0 +1,20 @@
+# Copy to terraform.tfvars (git-ignored) and fill in.
+
+enable_ec2 = true
+enable_ecs = false # true once an image tagged latest is in this env's ECR
+enable_alb = false # FINAL STEP: true once EC2 and ECS both work (needs enable_ecs)
+
+instance_type = "t4g.medium" # ARM (Graviton), 2 vCPU / 4 GiB
+architecture  = "arm64"
+
+ssh_public_key    = "CHANGE_ME_SSH_PUBLIC_KEY" # contents of ~/.ssh/magic-scotland.pub
+ssh_allowed_cidrs = ["CHANGE_ME_YOUR_IP/32"]   # curl -s https://checkip.amazonaws.com
+
+# Private test site: put your IP here (e.g. ["203.0.113.10/32"]) to keep everyone else out.
+web_allowed_cidrs = ["0.0.0.0/0"]
+
+notify_email = "you@example.com"
+alarm_email  = "you@example.com"
+
+# No domain: the site is reached on AWS's own addresses, HTTP only.
+domain_name = ""

@@ -1,4 +1,5 @@
-# One small Linux web server. Terraform creates the box; Ansible configures it.
+# One small Linux web server. Terraform creates the box; Ansible configures it
+# over plain SSH.
 
 data "aws_ami" "ubuntu" {
   most_recent = true
@@ -25,10 +26,13 @@ resource "aws_key_pair" "admin" {
 
 # ---------------------------------------------------------------------------
 # Security group
+#   22      from your IP(s) only. GitHub Actions adds a temporary rule for the
+#           runner's IP during a deploy and removes it afterwards.
+#   80/443  from web_allowed_cidrs
 # ---------------------------------------------------------------------------
 resource "aws_security_group" "web" {
   name        = "${var.name}-web-ec2"
-  description = "Web server: SSH from admin IPs, HTTP/HTTPS from anywhere"
+  description = "Web server: SSH from admin IPs, HTTP/HTTPS from web_allowed_cidrs"
   vpc_id      = var.vpc_id
   tags        = { Name = "${var.name}-web-ec2" }
 }
@@ -44,21 +48,23 @@ resource "aws_vpc_security_group_ingress_rule" "ssh" {
 }
 
 resource "aws_vpc_security_group_ingress_rule" "http" {
+  for_each          = toset(var.web_allowed_cidrs)
   security_group_id = aws_security_group.web.id
-  description       = "HTTP (redirected to HTTPS by Nginx when TLS is on)"
+  description       = "HTTP"
   ip_protocol       = "tcp"
   from_port         = 80
   to_port           = 80
-  cidr_ipv4         = "0.0.0.0/0"
+  cidr_ipv4         = each.value
 }
 
 resource "aws_vpc_security_group_ingress_rule" "https" {
+  for_each          = toset(var.web_allowed_cidrs)
   security_group_id = aws_security_group.web.id
   description       = "HTTPS"
   ip_protocol       = "tcp"
   from_port         = 443
   to_port           = 443
-  cidr_ipv4         = "0.0.0.0/0"
+  cidr_ipv4         = each.value
 }
 
 resource "aws_vpc_security_group_egress_rule" "all" {
@@ -69,7 +75,8 @@ resource "aws_vpc_security_group_egress_rule" "all" {
 }
 
 # ---------------------------------------------------------------------------
-# Instance role: SSM Session Manager, CloudWatch agent, ECR pulls, app access
+# Instance role: CloudWatch agent, ECR pulls, app access, and SSM Session
+# Manager as a break-glass way in if you lock yourself out of SSH.
 # ---------------------------------------------------------------------------
 data "aws_iam_policy_document" "ec2_trust" {
   statement {
@@ -101,51 +108,9 @@ resource "aws_iam_role_policy_attachment" "app" {
   policy_arn = var.app_policy_arn
 }
 
-# Ansible over SSM copies files through this bucket.
-resource "aws_iam_role_policy" "ssm_transfer" {
-  name = "ansible-ssm-transfer"
-  role = aws_iam_role.web.id
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect   = "Allow"
-      Action   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:ListBucket"]
-      Resource = [aws_s3_bucket.ansible_ssm.arn, "${aws_s3_bucket.ansible_ssm.arn}/*"]
-    }]
-  })
-}
-
 resource "aws_iam_instance_profile" "web" {
   name = "${var.name}-web-ec2"
   role = aws_iam_role.web.name
-}
-
-# ---------------------------------------------------------------------------
-# Bucket used by Ansible's aws_ssm connection plugin to move files
-# ---------------------------------------------------------------------------
-resource "aws_s3_bucket" "ansible_ssm" {
-  bucket_prefix = "${var.name}-ansible-ssm-"
-  force_destroy = true
-}
-
-resource "aws_s3_bucket_public_access_block" "ansible_ssm" {
-  bucket                  = aws_s3_bucket.ansible_ssm.id
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
-}
-
-resource "aws_s3_bucket_lifecycle_configuration" "ansible_ssm" {
-  bucket = aws_s3_bucket.ansible_ssm.id
-  rule {
-    id     = "expire-transfers"
-    status = "Enabled"
-    filter {}
-    expiration {
-      days = 1
-    }
-  }
 }
 
 # ---------------------------------------------------------------------------
@@ -190,7 +155,7 @@ resource "aws_eip" "web" {
   tags     = { Name = "${var.name}-web" }
 }
 
-# Optional DNS record: ec2.<domain> -> Elastic IP
+# Optional DNS record (only with a domain)
 resource "aws_route53_record" "web" {
   count   = var.zone_id == "" ? 0 : 1
   zone_id = var.zone_id
@@ -201,7 +166,7 @@ resource "aws_route53_record" "web" {
 }
 
 # ---------------------------------------------------------------------------
-# Alarm: recover the instance if the AWS host fails
+# Alarm: recover the instance if the AWS host fails, and tell you
 # ---------------------------------------------------------------------------
 resource "aws_cloudwatch_metric_alarm" "status_check" {
   alarm_name          = "${var.name}-web-status-check"

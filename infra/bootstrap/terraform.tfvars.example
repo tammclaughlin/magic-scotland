@@ -1,5 +1,14 @@
+# Copy to terraform.tfvars (git-ignored) and fill in.
 region            = "eu-west-2"
 project           = "magic-scotland"
-state_bucket_name = "CHANGE_ME-magic-scotland-tfstate" # must be globally unique, e.g. add your account ID
+state_bucket_name = "CHANGE_ME_STATE_BUCKET" # globally unique, e.g. magic-scotland-tfstate-<account id>
 github_owner      = "CHANGE_ME_GITHUB_OWNER"
 github_repo       = "CHANGE_ME_GITHUB_REPO"
+
+# Set false if `make preflight` says these already exist in the account
+create_github_oidc_provider = true
+create_ses_identity         = true
+
+notify_email       = "you@example.com"
+budget_email       = "you@example.com"
+monthly_budget_usd = 20

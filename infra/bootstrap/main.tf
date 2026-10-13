@@ -1,16 +1,17 @@
-# One-off bootstrap. Run ONCE from your laptop with your own AWS credentials:
+# Account-level, one-off bootstrap. Run ONCE from your laptop:
 #
-#   cd infra/bootstrap
-#   cp terraform.tfvars.example terraform.tfvars   # fill in the CHANGE_ME values
-#   terraform init && terraform apply
+#   make preflight            # read-only check of the account first
+#   make bootstrap            # uses the claude-rw profile
 #
-# It creates:
-#   - the S3 bucket that holds Terraform state for every other stack
-#   - the GitHub OIDC identity provider
-#   - the IAM role GitHub Actions assumes (no long-lived AWS keys in GitHub)
+# Creates the things that exist once per account, shared by dev and prod:
+#   - S3 bucket for Terraform state (both environments)
+#   - GitHub OIDC identity provider (or reuses an existing one)
+#   - IAM role that GitHub Actions assumes
+#   - SES identity for the notification email address
+#   - Account-wide monthly budget alert
 #
-# This stack keeps its own state locally (terraform.tfstate in this folder).
-# Do not commit that file; back it up somewhere safe.
+# This stack keeps its state locally (terraform.tfstate in this folder,
+# git-ignored). Back that file up somewhere safe.
 
 terraform {
   required_version = ">= 1.10"
@@ -84,10 +85,25 @@ resource "aws_s3_bucket_lifecycle_configuration" "state" {
 
 # ---------------------------------------------------------------------------
 # GitHub Actions OIDC
+# An account can only have ONE provider for token.actions.githubusercontent.com.
+# If `make preflight` finds one already, set create_github_oidc_provider = false
+# and this stack reuses it.
 # ---------------------------------------------------------------------------
 resource "aws_iam_openid_connect_provider" "github" {
+  count          = var.create_github_oidc_provider ? 1 : 0
   url            = "https://token.actions.githubusercontent.com"
   client_id_list = ["sts.amazonaws.com"]
+}
+
+data "aws_iam_openid_connect_provider" "github" {
+  count = var.create_github_oidc_provider ? 0 : 1
+  url   = "https://token.actions.githubusercontent.com"
+}
+
+locals {
+  github_oidc_arn = (var.create_github_oidc_provider
+    ? aws_iam_openid_connect_provider.github[0].arn
+  : data.aws_iam_openid_connect_provider.github[0].arn)
 }
 
 data "aws_iam_policy_document" "github_trust" {
@@ -95,22 +111,23 @@ data "aws_iam_policy_document" "github_trust" {
     actions = ["sts:AssumeRoleWithWebIdentity"]
     principals {
       type        = "Federated"
-      identifiers = [aws_iam_openid_connect_provider.github.arn]
+      identifiers = [local.github_oidc_arn]
     }
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:aud"
       values   = ["sts.amazonaws.com"]
     }
-    # Only this repository, and only main-branch runs, pull requests
-    # and the GitHub Environment used for applies.
+    # Only this repository: main-branch runs, pull requests, and the
+    # dev / prod GitHub Environments.
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
       values = [
         "repo:${var.github_owner}/${var.github_repo}:ref:refs/heads/main",
         "repo:${var.github_owner}/${var.github_repo}:pull_request",
-        "repo:${var.github_owner}/${var.github_repo}:environment:*",
+        "repo:${var.github_owner}/${var.github_repo}:environment:dev",
+        "repo:${var.github_owner}/${var.github_repo}:environment:prod",
       ]
     }
   }
@@ -124,9 +141,44 @@ resource "aws_iam_role" "github_actions" {
 
 # LEARNING SHORTCUT: AdministratorAccess lets Terraform create anything.
 # The trust policy above limits WHO can assume it to your repo.
-# CHANGE_ME_LATER: replace with a scoped policy once the project settles
-# (you said to ignore role design for now).
+# CHANGE_ME_LATER: replace with a scoped policy once the project settles.
 resource "aws_iam_role_policy_attachment" "github_admin" {
   role       = aws_iam_role.github_actions.name
   policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
+}
+
+# ---------------------------------------------------------------------------
+# SES: verify the notification address once for the whole account.
+# AWS emails a confirmation link to it - click it.
+# ---------------------------------------------------------------------------
+resource "aws_ses_email_identity" "notify" {
+  count = var.create_ses_identity ? 1 : 0
+  email = var.notify_email
+}
+
+# ---------------------------------------------------------------------------
+# Account-wide budget (covers dev + prod and anything else in the account)
+# ---------------------------------------------------------------------------
+resource "aws_budgets_budget" "monthly" {
+  name         = "${var.project}-monthly"
+  budget_type  = "COST"
+  limit_amount = tostring(var.monthly_budget_usd)
+  limit_unit   = "USD"
+  time_unit    = "MONTHLY"
+
+  notification {
+    comparison_operator        = "GREATER_THAN"
+    threshold                  = 80
+    threshold_type             = "PERCENTAGE"
+    notification_type          = "FORECASTED"
+    subscriber_email_addresses = [var.budget_email]
+  }
+
+  notification {
+    comparison_operator        = "GREATER_THAN"
+    threshold                  = 100
+    threshold_type             = "PERCENTAGE"
+    notification_type          = "ACTUAL"
+    subscriber_email_addresses = [var.budget_email]
+  }
 }

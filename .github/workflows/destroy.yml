@@ -1,48 +1,37 @@
-name: Destroy dev environment
+name: Destroy an environment
 
-# Manual only. Tears down everything in infra/envs/dev to stop charges.
-# The bootstrap stack (state bucket, OIDC role) is NOT touched.
+# Manual only. Tears down infra/envs/<env> to stop charges.
+# The bootstrap stack (state bucket, OIDC role, SES, budget) is not touched.
 
 on:
   workflow_dispatch:
     inputs:
+      env:
+        description: Environment to destroy
+        type: choice
+        options: [dev, prod]
       confirm:
-        description: Type "destroy-dev" to confirm
+        description: Type "destroy-dev" or "destroy-prod" to confirm
         required: true
 
 permissions:
   id-token: write
   contents: read
 
-concurrency:
-  group: terraform-dev
-  cancel-in-progress: false
-
-env:
-  AWS_REGION: eu-west-2
-  TF_DIR: infra/envs/dev
-  TF_VAR_ssh_public_key: ${{ vars.TF_VAR_SSH_PUBLIC_KEY }}
-  TF_VAR_ssh_allowed_cidrs: ${{ vars.TF_VAR_SSH_ALLOWED_CIDRS }}
-  TF_VAR_notify_email: ${{ vars.TF_VAR_NOTIFY_EMAIL }}
-  TF_VAR_ses_sender_email: ${{ vars.TF_VAR_SES_SENDER_EMAIL }}
-  TF_VAR_budget_email: ${{ vars.TF_VAR_BUDGET_EMAIL }}
-  TF_VAR_domain_name: ${{ vars.TF_VAR_DOMAIN_NAME }}
-  TF_VAR_enable_ec2: ${{ vars.TF_VAR_ENABLE_EC2 || 'true' }}
-  TF_VAR_enable_ecs: ${{ vars.TF_VAR_ENABLE_ECS || 'false' }}
-
 jobs:
-  destroy:
-    if: inputs.confirm == 'destroy-dev'
+  check:
     runs-on: ubuntu-latest
-    environment: dev
     steps:
-      - uses: actions/checkout@v4
-      - uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
-      - uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: "~1.13"
-      - run: terraform -chdir=$TF_DIR init -input=false
-      - run: terraform -chdir=$TF_DIR destroy -input=false -auto-approve
+      - name: Confirm
+        if: inputs.confirm != format('destroy-{0}', inputs.env)
+        run: |
+          echo "Confirmation text does not match destroy-${{ inputs.env }}"
+          exit 1
+
+  destroy:
+    needs: check
+    uses: ./.github/workflows/_terraform-apply.yml
+    with:
+      env: ${{ inputs.env }}
+      destroy: true
+    secrets: inherit

@@ -1,0 +1,18 @@
+# Dynamic inventory for prod: finds the web server by its tags, no IPs hard-coded.
+# Needs boto3/botocore and AWS credentials (make uses the claude-ro profile).
+#   ansible-inventory -i inventory/prod --graph
+plugin: amazon.aws.aws_ec2
+regions:
+  - eu-west-2
+filters:
+  tag:Project: magic-scotland
+  tag:Env: prod
+  tag:Role: web
+  instance-state-name: running
+keyed_groups:
+  - key: tags.Role
+    prefix: role
+hostnames:
+  - tag:Name
+compose:
+  ansible_host: public_ip_address

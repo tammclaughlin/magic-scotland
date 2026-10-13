@@ -1,0 +1,111 @@
+name: ECS deploy (reusable)
+
+# For prod: first copy (promote) the image from the dev ECR repo, unchanged.
+# Then register a new task definition with that image and roll the service.
+# Names are derived from the environment, so no per-env variables are needed:
+#   ECR repo / cluster / task family: magic-scotland-<env>, service: web
+
+on:
+  workflow_call:
+    inputs:
+      env:
+        required: true
+        type: string
+      image_tag:
+        required: true
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.env }}
+    concurrency: deploy-ecs-${{ inputs.env }}
+    env:
+      AWS_REGION: eu-west-2
+      ENV: ${{ inputs.env }}
+      NAME: magic-scotland-${{ inputs.env }}
+      TAG: ${{ inputs.image_tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Work out names
+        id: names
+        run: |
+          account=$(aws sts get-caller-identity --query Account --output text)
+          registry="$account.dkr.ecr.$AWS_REGION.amazonaws.com"
+          echo "registry=$registry" >> "$GITHUB_OUTPUT"
+          echo "image=$registry/$NAME:$TAG" >> "$GITHUB_OUTPUT"
+          if aws ecr describe-repositories --repository-names "$NAME" >/dev/null 2>&1; then
+            echo "repo=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::ECR repo $NAME not found - skipping $ENV."
+            echo "repo=false" >> "$GITHUB_OUTPUT"
+          fi
+          status=$(aws ecs describe-services --cluster "$NAME" --services web \
+                     --query 'services[0].status' --output text 2>/dev/null || true)
+          if [ "$status" = "ACTIVE" ]; then
+            echo "service=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::ECS service $NAME/web not active - image promoted only, no deploy."
+            echo "service=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: aws-actions/amazon-ecr-login@v2
+        if: steps.names.outputs.repo == 'true'
+
+      - uses: docker/setup-buildx-action@v3
+        if: inputs.env != 'dev' && steps.names.outputs.repo == 'true'
+
+      - name: Promote image from dev
+        if: inputs.env != 'dev' && steps.names.outputs.repo == 'true'
+        run: |
+          src="${{ steps.names.outputs.registry }}/magic-scotland-dev:$TAG"
+          dst="${{ steps.names.outputs.registry }}/$NAME"
+          docker buildx imagetools create --tag "$dst:$TAG" --tag "$dst:latest" "$src"
+
+      - name: Download current task definition
+        if: steps.names.outputs.service == 'true'
+        run: |
+          aws ecs describe-task-definition --task-definition "$NAME" \
+            --query taskDefinition > task-definition.json
+
+      - id: render
+        if: steps.names.outputs.service == 'true'
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-definition.json
+          container-name: web
+          image: ${{ steps.names.outputs.image }}
+
+      - name: Deploy and wait for the service to be stable
+        if: steps.names.outputs.service == 'true'
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render.outputs.task-definition }}
+          cluster: ${{ env.NAME }}
+          service: web
+          wait-for-service-stability: true
+
+      - name: Smoke test
+        if: steps.names.outputs.service == 'true'
+        continue-on-error: true # fails by design if web_allowed_cidrs is your IP only
+        run: |
+          # ALB address if there is one (final step), otherwise the task's public IP:8000
+          dns=$(aws elbv2 describe-load-balancers --names "$NAME" \
+                  --query 'LoadBalancers[0].DNSName' --output text 2>/dev/null || true)
+          if [ -n "$dns" ] && [ "$dns" != "None" ]; then url="http://$dns"
+          else url="http://$(scripts/ecs-url.sh "$ENV" --ip):8000"; fi
+          echo "Checking $url"
+          for i in $(seq 1 12); do
+            curl -fsS "$url/healthz" && exit 0
+            sleep 5
+          done
+          exit 1

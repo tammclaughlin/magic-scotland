@@ -1,0 +1,49 @@
+name: terraform apply (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      env:
+        required: true
+        type: string
+      destroy:
+        type: boolean
+        default: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.env }} # add a required reviewer on prod
+    concurrency: terraform-${{ inputs.env }}
+    env:
+      AWS_REGION: eu-west-2
+      TF_IN_AUTOMATION: "true"
+      TF_DIR: infra/envs/${{ inputs.env }}
+      TF_VAR_ssh_public_key: ${{ vars.TF_VAR_SSH_PUBLIC_KEY }}
+      TF_VAR_ssh_allowed_cidrs: ${{ vars.TF_VAR_SSH_ALLOWED_CIDRS }}
+      TF_VAR_web_allowed_cidrs: ${{ vars.TF_VAR_WEB_ALLOWED_CIDRS || '["0.0.0.0/0"]' }}
+      TF_VAR_notify_email: ${{ vars.TF_VAR_NOTIFY_EMAIL }}
+      TF_VAR_alarm_email: ${{ vars.TF_VAR_ALARM_EMAIL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.13"
+      - run: terraform -chdir=$TF_DIR init -input=false -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}"
+      - name: terraform ${{ inputs.destroy && 'destroy' || 'apply' }} (${{ inputs.env }})
+        run: terraform -chdir=$TF_DIR ${{ inputs.destroy && 'destroy' || 'apply' }} -input=false -auto-approve
+        env:
+          TF_VAR_enable_ec2: ${{ vars.ENABLE_EC2 || 'true' }}
+          TF_VAR_enable_ecs: ${{ vars.ENABLE_ECS || 'false' }}
+          TF_VAR_enable_alb: ${{ vars.ENABLE_ALB || 'false' }}
+      - name: Outputs
+        if: ${{ !inputs.destroy }}
+        run: terraform -chdir=$TF_DIR output

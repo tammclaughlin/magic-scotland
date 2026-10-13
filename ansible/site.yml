@@ -2,10 +2,13 @@
 # Configure the web server.
 #
 #   ansible-galaxy collection install -r requirements.yml
-#   ansible-playbook site.yml --check --diff     # dry run
-#   ansible-playbook site.yml                    # for real
-#   ansible-playbook site.yml --tags app         # just redeploy the app
-#   ansible-playbook site.yml -e app_mode=docker # switch to the container
+#   ansible-playbook site.yml --check --diff          # dry run (dev)
+#   ansible-playbook site.yml                         # dev
+#   ansible-playbook -i inventory/prod site.yml       # prod
+#   ansible-playbook site.yml --tags app              # just redeploy the app
+#   ansible-playbook site.yml -e app_mode=docker      # run the container instead
+#
+# Or use the Makefile: make deploy-ec2 ENV=dev
 
 - name: Configure magic-scotland web server
   hosts: role_web
@@ -13,17 +16,30 @@
   gather_facts: true
 
   pre_tasks:
-    - name: Wait for the instance to accept connections
-      ansible.builtin.wait_for_connection:
-        timeout: 300
-
     - name: Fail early if placeholders are still set
       ansible.builtin.assert:
         that:
           - "'CHANGE_ME' not in admin_user"
-          - "app_mode != 'docker' or 'CHANGE_ME' not in ecr_repository_url"
-          - "not (use_ssm | bool) or 'CHANGE_ME' not in ansible_aws_ssm_bucket_name"
-        fail_msg: "Fill in the CHANGE_ME values in group_vars/all.yml (see README)."
+          - env in ['dev', 'prod']
+        fail_msg: "Set admin_user in group_vars/all.yml and run with -i inventory/dev or inventory/prod."
+
+    - name: Work out the ECR repository for docker mode
+      when: app_mode == 'docker' and ecr_repository_url | length == 0
+      block:
+        - name: Look up the AWS account
+          amazon.aws.aws_caller_info:
+          register: caller
+          delegate_to: localhost
+          become: false
+          run_once: true
+
+        - name: Set ECR repository URL
+          ansible.builtin.set_fact:
+            ecr_repository_url: "{{ caller.account }}.dkr.ecr.{{ aws_region }}.amazonaws.com/{{ project }}-{{ env }}"
+
+    - name: Wait for the instance to accept connections
+      ansible.builtin.wait_for_connection:
+        timeout: 300
 
   roles:
     - role: common
@@ -48,8 +64,6 @@
     - name: Smoke test the site through Nginx
       ansible.builtin.uri:
         url: "http://127.0.0.1/healthz"
-        headers:
-          Host: "{{ domain_name if domain_name | length > 0 else 'localhost' }}"
         status_code: [200, 301]
       register: smoke
       retries: 10

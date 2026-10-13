@@ -1,5 +1,6 @@
-# Resources both deploy paths use: ECR, DynamoDB, SES, SSM parameters,
-# the IAM policy the app needs, a budget alert, and optional DNS + TLS.
+# Per-environment resources both deploy paths use: ECR, DynamoDB,
+# SSM parameters, the IAM policy the app needs, and optional DNS + TLS.
+# (SES identity and the budget are account-wide: see infra/bootstrap.)
 
 data "aws_caller_identity" "current" {}
 data "aws_region" "current" {}
@@ -9,7 +10,7 @@ locals {
 }
 
 # ---------------------------------------------------------------------------
-# Container registry
+# Container registry (one per environment; prod images are promoted from dev)
 # ---------------------------------------------------------------------------
 resource "aws_ecr_repository" "app" {
   name                 = var.name
@@ -57,20 +58,6 @@ resource "aws_dynamodb_table" "contact" {
   server_side_encryption {
     enabled = true
   }
-}
-
-# ---------------------------------------------------------------------------
-# Email (SES). New accounts are in the SES sandbox: you can only send to
-# verified addresses. Verifying your own address is enough here, because the
-# form only emails you. AWS sends a confirmation link to this address.
-# ---------------------------------------------------------------------------
-resource "aws_ses_email_identity" "notify" {
-  email = var.notify_email
-}
-
-resource "aws_ses_email_identity" "sender" {
-  count = var.ses_sender_email == var.notify_email ? 0 : 1
-  email = var.ses_sender_email
 }
 
 # ---------------------------------------------------------------------------
@@ -139,35 +126,8 @@ resource "aws_iam_policy" "app" {
 }
 
 # ---------------------------------------------------------------------------
-# Budget alert
-# ---------------------------------------------------------------------------
-resource "aws_budgets_budget" "monthly" {
-  name         = "${var.name}-monthly"
-  budget_type  = "COST"
-  limit_amount = tostring(var.monthly_budget_usd)
-  limit_unit   = "USD"
-  time_unit    = "MONTHLY"
-
-  notification {
-    comparison_operator        = "GREATER_THAN"
-    threshold                  = 80
-    threshold_type             = "PERCENTAGE"
-    notification_type          = "FORECASTED"
-    subscriber_email_addresses = [var.budget_email]
-  }
-
-  notification {
-    comparison_operator        = "GREATER_THAN"
-    threshold                  = 100
-    threshold_type             = "PERCENTAGE"
-    notification_type          = "ACTUAL"
-    subscriber_email_addresses = [var.budget_email]
-  }
-}
-
-# ---------------------------------------------------------------------------
-# Optional: DNS + ACM certificate (only when domain_name is set)
-# Assumes a Route 53 hosted zone for the domain already exists.
+# Optional: DNS + ACM certificate (only when domain_name is set).
+# You chose no domain, so none of this is created.
 # ---------------------------------------------------------------------------
 data "aws_route53_zone" "this" {
   count = var.domain_name == "" ? 0 : 1
@@ -177,7 +137,7 @@ data "aws_route53_zone" "this" {
 resource "aws_acm_certificate" "site" {
   count                     = var.domain_name == "" ? 0 : 1
   domain_name               = var.domain_name
-  subject_alternative_names = ["www.${var.domain_name}"]
+  subject_alternative_names = ["*.${var.domain_name}"]
   validation_method         = "DNS"
 
   lifecycle {

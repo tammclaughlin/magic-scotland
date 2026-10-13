@@ -1,13 +1,13 @@
 name: Infrastructure
 
-# Pull request -> terraform plan, posted as a comment
-# Merge to main -> terraform apply, after manual approval on the "dev" environment
+# Pull request -> terraform plan for dev and prod
+# Merge to main -> apply dev, then apply prod (prod waits for your approval)
 #
-# Repository VARIABLES (Settings > Secrets and variables > Actions > Variables):
-#   AWS_ROLE_ARN          output of infra/bootstrap
-#   TF_VAR_SSH_PUBLIC_KEY, TF_VAR_SSH_ALLOWED_CIDRS (JSON list, e.g. ["203.0.113.10/32"]),
-#   TF_VAR_NOTIFY_EMAIL, TF_VAR_SES_SENDER_EMAIL, TF_VAR_BUDGET_EMAIL,
-#   TF_VAR_DOMAIN_NAME (may be empty), TF_VAR_ENABLE_EC2, TF_VAR_ENABLE_ECS
+# Repository variables: AWS_ROLE_ARN, TF_STATE_BUCKET, TF_VAR_SSH_PUBLIC_KEY,
+#   TF_VAR_SSH_ALLOWED_CIDRS, TF_VAR_WEB_ALLOWED_CIDRS, TF_VAR_NOTIFY_EMAIL,
+#   TF_VAR_ALARM_EMAIL
+# Environment variables (in the dev and prod GitHub Environments):
+#   ENABLE_EC2, ENABLE_ECS, ENABLE_ALB  ("true" / "false"; ALB is the final step)
 
 on:
   pull_request:
@@ -22,27 +22,25 @@ permissions:
   contents: read
   pull-requests: write
 
-concurrency:
-  group: terraform-dev
-  cancel-in-progress: false
-
 env:
   AWS_REGION: eu-west-2
-  TF_DIR: infra/envs/dev
   TF_IN_AUTOMATION: "true"
   TF_VAR_ssh_public_key: ${{ vars.TF_VAR_SSH_PUBLIC_KEY }}
   TF_VAR_ssh_allowed_cidrs: ${{ vars.TF_VAR_SSH_ALLOWED_CIDRS }}
+  TF_VAR_web_allowed_cidrs: ${{ vars.TF_VAR_WEB_ALLOWED_CIDRS || '["0.0.0.0/0"]' }}
   TF_VAR_notify_email: ${{ vars.TF_VAR_NOTIFY_EMAIL }}
-  TF_VAR_ses_sender_email: ${{ vars.TF_VAR_SES_SENDER_EMAIL }}
-  TF_VAR_budget_email: ${{ vars.TF_VAR_BUDGET_EMAIL }}
-  TF_VAR_domain_name: ${{ vars.TF_VAR_DOMAIN_NAME }}
-  TF_VAR_enable_ec2: ${{ vars.TF_VAR_ENABLE_EC2 || 'true' }}
-  TF_VAR_enable_ecs: ${{ vars.TF_VAR_ENABLE_ECS || 'false' }}
+  TF_VAR_alarm_email: ${{ vars.TF_VAR_ALARM_EMAIL }}
 
 jobs:
   plan:
     if: github.event_name == 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        env: [dev, prod]
     runs-on: ubuntu-latest
+    environment: ${{ matrix.env }} # prod plans wait for approval too
+    concurrency: terraform-${{ matrix.env }}
     steps:
       - uses: actions/checkout@v4
       - uses: aws-actions/configure-aws-credentials@v4
@@ -52,9 +50,13 @@ jobs:
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "~1.13"
-      - run: terraform -chdir=$TF_DIR init -input=false
+      - run: terraform -chdir=infra/envs/${{ matrix.env }} init -input=false -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}"
       - id: plan
-        run: terraform -chdir=$TF_DIR plan -input=false -no-color -out=tfplan
+        run: terraform -chdir=infra/envs/${{ matrix.env }} plan -input=false -no-color -lock=false
+        env:
+          TF_VAR_enable_ec2: ${{ vars.ENABLE_EC2 || 'true' }}
+          TF_VAR_enable_ecs: ${{ vars.ENABLE_ECS || 'false' }}
+          TF_VAR_enable_alb: ${{ vars.ENABLE_ALB || 'false' }}
       - name: Comment plan on the PR
         uses: actions/github-script@v7
         env:
@@ -67,23 +69,19 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: "### Terraform plan (dev)\n```\n" + plan + "\n```",
+              body: "### Terraform plan (${{ matrix.env }})\n```\n" + plan + "\n```",
             });
 
-  apply:
+  apply-dev:
     if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
-    environment: dev # add yourself as a required reviewer for manual approval
-    steps:
-      - uses: actions/checkout@v4
-      - uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
-      - uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: "~1.13"
-      - run: terraform -chdir=$TF_DIR init -input=false
-      - run: terraform -chdir=$TF_DIR apply -input=false -auto-approve
-      - name: Show outputs
-        run: terraform -chdir=$TF_DIR output
+    uses: ./.github/workflows/_terraform-apply.yml
+    with:
+      env: dev
+    secrets: inherit
+
+  apply-prod:
+    needs: apply-dev
+    uses: ./.github/workflows/_terraform-apply.yml
+    with:
+      env: prod
+    secrets: inherit

@@ -2,10 +2,6 @@ output "ecr_repository_url" {
   value = aws_ecr_repository.app.repository_url
 }
 
-output "ecr_repository_arn" {
-  value = aws_ecr_repository.app.arn
-}
-
 output "contact_table_name" {
   value = aws_dynamodb_table.contact.name
 }

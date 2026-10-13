@@ -1,22 +1,20 @@
-# Copy to terraform.tfvars and fill in. terraform.tfvars is git-ignored.
-# In CI the same values come from GitHub repository variables (TF_VAR_*).
-
-region  = "eu-west-2"
-project = "magic-scotland"
-env     = "dev"
+# Copy to terraform.tfvars (git-ignored) and fill in.
 
 enable_ec2 = true
-enable_ecs = false # set true after the first image is in ECR
+enable_ecs = false # true once an image tagged latest is in this env's ECR
+enable_alb = false # FINAL STEP: true once EC2 and ECS both work (needs enable_ecs)
 
-instance_type    = "t3.medium" # or "t4g.medium" with ec2_architecture = "arm64"
-ec2_architecture = "amd64"
+instance_type = "t4g.medium" # ARM (Graviton), 2 vCPU / 4 GiB
+architecture  = "arm64"
 
 ssh_public_key    = "CHANGE_ME_SSH_PUBLIC_KEY" # contents of ~/.ssh/magic-scotland.pub
 ssh_allowed_cidrs = ["CHANGE_ME_YOUR_IP/32"]   # curl -s https://checkip.amazonaws.com
 
-notify_email       = "CHANGE_ME_NOTIFY_EMAIL"  # where contact-form messages go
-ses_sender_email   = "CHANGE_ME_SENDER_EMAIL"  # can be the same as notify_email
-budget_email       = "CHANGE_ME_BUDGET_EMAIL"
-monthly_budget_usd = 20
+# Private test site: put your IP here (e.g. ["203.0.113.10/32"]) to keep everyone else out.
+web_allowed_cidrs = ["0.0.0.0/0"]
 
-domain_name = "" # CHANGE_ME_DOMAIN, e.g. "magicscotland.example" (needs a Route 53 hosted zone)
+notify_email = "you@example.com"
+alarm_email  = "you@example.com"
+
+# No domain: the site is reached on AWS's own addresses, HTTP only.
+domain_name = ""

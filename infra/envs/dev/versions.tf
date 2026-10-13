@@ -13,13 +13,15 @@ terraform {
   }
 }
 
+# Credentials: locally via AWS_PROFILE (the Makefile sets claude-ro / claude-rw),
+# in GitHub Actions via the OIDC role.
 provider "aws" {
   region = var.region
 
   default_tags {
     tags = {
       Project   = var.project
-      Env       = var.env
+      Env       = local.env
       ManagedBy = "terraform"
     }
   }

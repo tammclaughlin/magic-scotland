@@ -42,10 +42,26 @@ def test_index_lists_clubs(client):
 
 
 def test_club_page_hides_contacts_without_consent(client):
-    resp = client.get("/clubs/sample-capital-conjurors")
+    resp = client.get("/clubs/thistle-circle")
     assert resp.status_code == 200
-    assert b"president@example.org" in resp.data
-    assert b"private@example.org" not in resp.data
+    assert b"secretary@thistle-circle.example.org" in resp.data
+    assert b"treasurer@thistle-circle.example.org" not in resp.data
+
+
+def test_club_without_public_contacts_points_to_form(client):
+    resp = client.get("/clubs/stirling-guild")
+    assert resp.status_code == 200
+    assert b"contact form" in resp.data
+
+
+def test_every_club_page_renders(client):
+    for club in data.get_clubs():
+        assert client.get(f"/clubs/{club['slug']}").status_code == 200
+
+
+def test_club_slugs_are_unique():
+    slugs = [c["slug"] for c in data.get_clubs()]
+    assert len(slugs) == len(set(slugs))
 
 
 def test_unknown_club_is_404(client):
@@ -55,7 +71,7 @@ def test_unknown_club_is_404(client):
 def test_events_hides_past_events(client):
     resp = client.get("/events")
     assert resp.status_code == 200
-    assert b"Sample Past Event" not in resp.data
+    assert b"Autumn Lecture That Already Happened" not in resp.data
 
 
 def test_get_events_sorted_and_filtered():

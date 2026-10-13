@@ -1,57 +1,120 @@
-# Magic clubs and societies in Scotland.
+# Magic clubs and societies in Scotland - ALL FICTIONAL test data.
+# Club names, people, venues, emails and phone numbers are invented.
+# Emails use example.org and phone numbers use the Ofcom drama range
+# (07700 900000-900999), so none of them reach a real person.
 #
-# CHANGE_ME_CLUB_DATA: these are FICTIONAL sample entries so the site has
-# something to show. Replace them with real clubs before going public.
-#
-# Only contacts with `consent: true` are shown on the site (UK GDPR).
-# Prefer club role addresses (secretary@club.example) over personal ones.
+# Only contacts with `consent: true` are shown on the site.
 #
 # Fields:
 #   name, slug (unique, used in the URL), town, region, description, website
 #   meeting: { schedule, venue, address }
 #   contacts: [ { name, role, email, phone, consent } ]
 
-- name: Sample Highland Magic Society
-  slug: sample-highland-magic-society
-  town: Inverness
-  region: Highland
-  description: Example entry - a friendly club for magicians of all levels.
-  website: https://example.org/highland-magic
-  meeting:
-    schedule: 2nd Tuesday of each month, 7.30pm
-    venue: CHANGE_ME venue name
-    address: CHANGE_ME street, Inverness
-  contacts:
-    - name: CHANGE_ME Secretary Name
-      role: Secretary
-      email: secretary@example.org
-      consent: true
-
-- name: Sample Capital Conjurors
-  slug: sample-capital-conjurors
+- name: The Thistle Circle of Conjurors
+  slug: thistle-circle
   town: Edinburgh
   region: Lothian
-  description: Example entry - lectures, workshops and a yearly close-up competition.
-  website: https://example.org/capital-conjurors
+  description: >-
+    A friendly society for close-up and parlour magicians, with a lecture
+    from a visiting performer most months and a close-up competition each spring.
+  website: https://example.org/thistle-circle
   meeting:
-    schedule: Every other Thursday, 7pm
-    venue: CHANGE_ME venue name
+    schedule: 2nd and 4th Thursday, 7.30pm
+    venue: The Lantern Rooms
+    address: 12 Fictional Wynd, Edinburgh
   contacts:
-    - name: CHANGE_ME President Name
-      role: President
-      email: president@example.org
+    - name: Morag Lindsay
+      role: Secretary
+      email: secretary@thistle-circle.example.org
+      phone: 07700 900101
       consent: true
-    - name: Private Person
+    - name: Alasdair Baird
       role: Treasurer
-      email: private@example.org
-      consent: false   # not shown on the site
+      email: treasurer@thistle-circle.example.org
+      consent: false   # hidden: no consent to publish
 
-- name: Sample West Coast Magic Circle
-  slug: sample-west-coast-magic-circle
+- name: Clydeside Magic Society
+  slug: clydeside-magic
   town: Glasgow
   region: Strathclyde
-  description: Example entry - meetings with a theme each month.
+  description: >-
+    One of the larger clubs in the west. Themed meetings (cards, coins,
+    mentalism, stage) and a members' show every December.
+  website: https://example.org/clydeside-magic
   meeting:
     schedule: Last Monday of each month, 7.30pm
-    venue: CHANGE_ME venue name
-  contacts: []
+    venue: Kelvinside Community Hall
+    address: 3 Imaginary Street, Glasgow
+  contacts:
+    - name: Callum Fraser
+      role: President
+      email: president@clydeside.example.org
+      phone: 07700 900202
+      consent: true
+
+- name: Granite City Illusionists
+  slug: granite-city-illusionists
+  town: Aberdeen
+  region: Aberdeenshire
+  description: >-
+    Small, informal club welcoming beginners. Sessions are mostly
+    hands-on workshops where members teach each other.
+  meeting:
+    schedule: 1st Wednesday of each month, 7pm
+    venue: The Silver Darling Café (back room)
+  contacts:
+    - name: Eilidh Ross
+      role: Organiser
+      email: hello@granite-illusionists.example.org
+      consent: true
+
+- name: Highland Society of Magicians
+  slug: highland-society
+  town: Inverness
+  region: Highland
+  description: >-
+    Covers the Highlands and Islands. Meets in person monthly and online
+    in between for members who live far from Inverness.
+  website: https://example.org/highland-magicians
+  meeting:
+    schedule: 3rd Saturday, 2pm (online meet-ups on the 1st Tuesday)
+    venue: Ness Bank Church Hall
+    address: 8 Pretend Road, Inverness
+  contacts:
+    - name: Ruaridh MacKenzie
+      role: Secretary
+      email: secretary@highland-magicians.example.org
+      phone: 07700 900404
+      consent: true
+
+- name: Tayside Order of Wonder
+  slug: tayside-order-of-wonder
+  town: Dundee
+  region: Tayside
+  description: >-
+    Focuses on stage and children's entertainment, with regular
+    "bring a trick" nights and charity shows.
+  meeting:
+    schedule: Every other Tuesday, 7.15pm
+    venue: The Discovery Rooms
+  contacts:
+    - name: Fiona Duncan
+      role: Chair
+      email: chair@tayside-wonder.example.org
+      consent: true
+    - name: Gregor Watt
+      role: Show coordinator
+      phone: 07700 900505
+      consent: true
+
+- name: Stirling Castle Conjurers' Guild
+  slug: stirling-guild
+  town: Stirling
+  region: Central
+  description: >-
+    A history-minded club that also collects and restores vintage magic
+    props. Visitors welcome at any meeting.
+  meeting:
+    schedule: 2nd Friday of each month, 7.30pm
+    venue: The Old Mill Library
+  contacts: []   # no public contact: the site points people to the contact form

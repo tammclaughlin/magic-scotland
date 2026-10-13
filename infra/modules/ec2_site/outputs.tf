@@ -10,9 +10,8 @@ output "public_dns" {
   value = aws_eip.web.public_dns
 }
 
-output "ansible_ssm_bucket" {
-  description = "Set as ansible_aws_ssm_bucket_name / GitHub variable ANSIBLE_SSM_BUCKET."
-  value       = aws_s3_bucket.ansible_ssm.bucket
+output "security_group_id" {
+  value = aws_security_group.web.id
 }
 
 output "ami_id" {

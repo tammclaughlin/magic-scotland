@@ -5,8 +5,8 @@
 - name: Check the placeholders are filled in
   ansible.builtin.assert:
     that:
-      - "'CHANGE_ME' not in letsencrypt_email"
-      - "'CHANGE_ME' not in domain_name"
+      - letsencrypt_email | length > 0
+      - domain_name | length > 0
     fail_msg: Set domain_name and letsencrypt_email in group_vars/all.yml
 
 - name: Install certbot

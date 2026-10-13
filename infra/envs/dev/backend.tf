@@ -1,8 +1,10 @@
 # Remote state in the bucket created by infra/bootstrap.
-# use_lockfile = native S3 state locking (Terraform 1.10+), no DynamoDB table needed.
+# The bucket name is passed at init time, so it lives in one place:
+#   make init ENV=dev                      (reads it from the bootstrap output)
+#   terraform init -backend-config="bucket=<state bucket>"
+# use_lockfile = native S3 state locking (Terraform 1.10+).
 terraform {
   backend "s3" {
-    bucket       = "CHANGE_ME-magic-scotland-tfstate" # output "state_bucket" from bootstrap
     key          = "magic-scotland/dev/terraform.tfstate"
     region       = "eu-west-2"
     encrypt      = true

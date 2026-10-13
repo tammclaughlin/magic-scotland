@@ -8,11 +8,6 @@ variable "project" {
   default = "magic-scotland"
 }
 
-variable "env" {
-  type    = string
-  default = "dev"
-}
-
 # Feature flags: run one path at a time to save money.
 variable "enable_ec2" {
   type    = bool
@@ -20,55 +15,54 @@ variable "enable_ec2" {
 }
 
 variable "enable_ecs" {
-  description = "Turn on after the first image has been pushed to ECR."
+  description = "Turn on once an image tagged latest is in this environment's ECR."
+  type        = bool
+  default     = false
+}
+
+variable "enable_alb" {
+  description = "FINAL STEP: add the load balancer once EC2 and ECS both work."
   type        = bool
   default     = false
 }
 
 variable "instance_type" {
   type    = string
-  default = "t3.medium"
+  default = "t4g.medium"
 }
 
-variable "ec2_architecture" {
+variable "architecture" {
   type    = string
-  default = "amd64"
+  default = "arm64"
 }
 
 variable "ssh_public_key" {
-  description = "Contents of your SSH PUBLIC key."
+  description = "Contents of your SSH PUBLIC key (~/.ssh/magic-scotland.pub)."
   type        = string
 }
 
 variable "ssh_allowed_cidrs" {
-  description = "Your home/office IP(s) as /32."
+  description = "Your IP(s) as /32 for SSH."
   type        = list(string)
 }
 
+variable "web_allowed_cidrs" {
+  description = "Who may open the website. Your IP /32 keeps the test site private; [\"0.0.0.0/0\"] opens it."
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+}
+
 variable "notify_email" {
-  type = string
+  description = "Contact-form notifications go to (and come from) this SES-verified address."
+  type        = string
 }
 
-variable "ses_sender_email" {
+variable "alarm_email" {
   type = string
-}
-
-variable "budget_email" {
-  type = string
-}
-
-variable "monthly_budget_usd" {
-  type    = number
-  default = 20
 }
 
 variable "domain_name" {
-  description = "Domain with a Route 53 hosted zone, or empty for no DNS/TLS."
+  description = "Empty: no domain, the site uses AWS addresses over HTTP."
   type        = string
   default     = ""
-}
-
-variable "initial_image_tag" {
-  type    = string
-  default = "latest"
 }

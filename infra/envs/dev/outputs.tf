@@ -1,42 +1,39 @@
 output "ecr_repository_url" {
-  description = "GitHub variable ECR_REPOSITORY_URL"
-  value       = module.shared.ecr_repository_url
+  value = module.stack.ecr_repository_url
 }
 
 output "ssm_prefix" {
-  value = module.shared.ssm_prefix
+  value = module.stack.ssm_prefix
 }
 
 output "ec2_public_ip" {
-  value = var.enable_ec2 ? module.ec2_site[0].public_ip : null
+  value = module.stack.ec2_public_ip
 }
 
 output "ec2_instance_id" {
-  value = var.enable_ec2 ? module.ec2_site[0].instance_id : null
+  value = module.stack.ec2_instance_id
 }
 
-output "ansible_ssm_bucket" {
-  description = "GitHub variable ANSIBLE_SSM_BUCKET"
-  value       = var.enable_ec2 ? module.ec2_site[0].ansible_ssm_bucket : null
+output "ec2_security_group_id" {
+  value = module.stack.ec2_security_group_id
 }
 
 output "site_url_ec2" {
-  value = var.enable_ec2 ? "http://${module.ec2_site[0].public_ip}" : null
+  value = module.stack.site_url_ec2
 }
 
 output "alb_url" {
-  description = "GitHub variable ECS_SITE_URL"
-  value       = var.enable_ecs ? "http://${module.ecs_site[0].alb_dns_name}" : null
+  value = module.stack.alb_url
 }
 
 output "ecs_cluster" {
-  value = var.enable_ecs ? module.ecs_site[0].cluster_name : null
+  value = module.stack.ecs_cluster
 }
 
 output "ecs_service" {
-  value = var.enable_ecs ? module.ecs_site[0].service_name : null
+  value = module.stack.ecs_service
 }
 
 output "ecs_task_family" {
-  value = var.enable_ecs ? module.ecs_site[0].task_family : null
+  value = module.stack.ecs_task_family
 }

@@ -39,10 +39,10 @@
     shell: /bin/bash
     create_home: true
 
-- name: Install admin SSH public key
+- name: Install admin (and CI, if provided) SSH public keys
   ansible.posix.authorized_key:
     user: "{{ admin_user }}"
-    key: "{{ admin_public_key }}"
+    key: "{{ [admin_public_key | trim, ci_public_key | trim] | select | join('\n') }}"
     exclusive: true
 
 - name: Passwordless sudo for admin user
@@ -54,7 +54,7 @@
     mode: "0440"
     validate: /usr/sbin/visudo -cf %s
 
-- name: Make sure the SSM agent is running (preinstalled as a snap on Ubuntu AMIs)
+- name: Keep the SSM agent running - break-glass access via Session Manager
   ansible.builtin.systemd_service:
     name: snap.amazon-ssm-agent.amazon-ssm-agent.service
     state: started

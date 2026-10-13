@@ -1,5 +1,6 @@
 output "alb_dns_name" {
-  value = aws_lb.this.dns_name
+  description = "Empty until enable_alb = true. Without the ALB, run make ecs-url."
+  value       = var.enable_alb ? aws_lb.this[0].dns_name : ""
 }
 
 output "cluster_name" {

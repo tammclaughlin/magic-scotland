@@ -1,14 +1,22 @@
-# The container path: ALB -> ECS service on Fargate, image from ECR.
+# The container path: an ECS service on Fargate, image from ECR.
+#
+# Two stages:
+#   enable_alb = false (start here)  tasks get a public IP; you browse to
+#                                    http://<task ip>:8000 (make ecs-url).
+#                                    The IP changes on every deploy.
+#   enable_alb = true  (final step)  an Application Load Balancer in front:
+#                                    one stable address, health checks,
+#                                    zero-downtime deploys. Tasks then only
+#                                    accept traffic from the ALB.
 #
 # Terraform creates the service with an initial task definition. After that,
-# the deploy-ecs GitHub workflow registers new task definition revisions
-# (new image tags), so Terraform ignores changes to the service's
-# task_definition to avoid fighting the pipeline.
+# deploys register new task definition revisions (new image tags), so
+# Terraform ignores changes to the service's task_definition.
 
 locals {
   container_name = "web"
   container_port = 8000
-  use_https      = var.certificate_arn != ""
+  use_https      = var.enable_alb && var.certificate_arn != ""
 }
 
 resource "aws_ecs_cluster" "this" {
@@ -79,50 +87,34 @@ resource "aws_iam_role_policy" "task_exec" {
 }
 
 # ---------------------------------------------------------------------------
-# Security groups: internet -> ALB (80/443) -> tasks (8000 only)
+# Task security group
+#   without ALB: port 8000 from web_allowed_cidrs (you browse to the task)
+#   with ALB:    port 8000 from the ALB only
 # ---------------------------------------------------------------------------
-resource "aws_security_group" "alb" {
-  name        = "${var.name}-alb"
-  description = "Public load balancer"
-  vpc_id      = var.vpc_id
-}
-
-resource "aws_vpc_security_group_ingress_rule" "alb_http" {
-  security_group_id = aws_security_group.alb.id
-  ip_protocol       = "tcp"
-  from_port         = 80
-  to_port           = 80
-  cidr_ipv4         = "0.0.0.0/0"
-}
-
-resource "aws_vpc_security_group_ingress_rule" "alb_https" {
-  security_group_id = aws_security_group.alb.id
-  ip_protocol       = "tcp"
-  from_port         = 443
-  to_port           = 443
-  cidr_ipv4         = "0.0.0.0/0"
-}
-
-resource "aws_vpc_security_group_egress_rule" "alb_to_tasks" {
-  security_group_id            = aws_security_group.alb.id
-  ip_protocol                  = "tcp"
-  from_port                    = local.container_port
-  to_port                      = local.container_port
-  referenced_security_group_id = aws_security_group.task.id
-}
-
 resource "aws_security_group" "task" {
   name        = "${var.name}-task"
-  description = "Fargate tasks: only the ALB may connect"
+  description = "Fargate tasks: port 8000 from the ALB, or from web_allowed_cidrs without one"
   vpc_id      = var.vpc_id
+}
+
+resource "aws_vpc_security_group_ingress_rule" "task_direct" {
+  for_each          = var.enable_alb ? toset([]) : toset(var.web_allowed_cidrs)
+  security_group_id = aws_security_group.task.id
+  description       = "Direct access while there is no ALB"
+  ip_protocol       = "tcp"
+  from_port         = local.container_port
+  to_port           = local.container_port
+  cidr_ipv4         = each.value
 }
 
 resource "aws_vpc_security_group_ingress_rule" "task_from_alb" {
+  count                        = var.enable_alb ? 1 : 0
   security_group_id            = aws_security_group.task.id
+  description                  = "From the ALB only"
   ip_protocol                  = "tcp"
   from_port                    = local.container_port
   to_port                      = local.container_port
-  referenced_security_group_id = aws_security_group.alb.id
+  referenced_security_group_id = aws_security_group.alb[0].id
 }
 
 resource "aws_vpc_security_group_egress_rule" "task_all" {
@@ -133,17 +125,53 @@ resource "aws_vpc_security_group_egress_rule" "task_all" {
 }
 
 # ---------------------------------------------------------------------------
-# Load balancer
+# FINAL STEP: Application Load Balancer (only when enable_alb = true)
 # ---------------------------------------------------------------------------
+resource "aws_security_group" "alb" {
+  count       = var.enable_alb ? 1 : 0
+  name        = "${var.name}-alb"
+  description = "Public load balancer"
+  vpc_id      = var.vpc_id
+}
+
+resource "aws_vpc_security_group_ingress_rule" "alb_http" {
+  for_each          = var.enable_alb ? toset(var.web_allowed_cidrs) : toset([])
+  security_group_id = aws_security_group.alb[0].id
+  ip_protocol       = "tcp"
+  from_port         = 80
+  to_port           = 80
+  cidr_ipv4         = each.value
+}
+
+resource "aws_vpc_security_group_ingress_rule" "alb_https" {
+  for_each          = local.use_https ? toset(var.web_allowed_cidrs) : toset([])
+  security_group_id = aws_security_group.alb[0].id
+  ip_protocol       = "tcp"
+  from_port         = 443
+  to_port           = 443
+  cidr_ipv4         = each.value
+}
+
+resource "aws_vpc_security_group_egress_rule" "alb_to_tasks" {
+  count                        = var.enable_alb ? 1 : 0
+  security_group_id            = aws_security_group.alb[0].id
+  ip_protocol                  = "tcp"
+  from_port                    = local.container_port
+  to_port                      = local.container_port
+  referenced_security_group_id = aws_security_group.task.id
+}
+
 resource "aws_lb" "this" {
+  count                      = var.enable_alb ? 1 : 0
   name                       = substr(var.name, 0, 32)
   load_balancer_type         = "application"
-  security_groups            = [aws_security_group.alb.id]
+  security_groups            = [aws_security_group.alb[0].id]
   subnets                    = var.subnet_ids
   drop_invalid_header_fields = true
 }
 
 resource "aws_lb_target_group" "app" {
+  count                = var.enable_alb ? 1 : 0
   name                 = substr("${var.name}-app", 0, 32)
   port                 = local.container_port
   protocol             = "HTTP"
@@ -161,13 +189,14 @@ resource "aws_lb_target_group" "app" {
 }
 
 resource "aws_lb_listener" "http" {
-  load_balancer_arn = aws_lb.this.arn
+  count             = var.enable_alb ? 1 : 0
+  load_balancer_arn = aws_lb.this[0].arn
   port              = 80
   protocol          = "HTTP"
 
   default_action {
     type             = local.use_https ? "redirect" : "forward"
-    target_group_arn = local.use_https ? null : aws_lb_target_group.app.arn
+    target_group_arn = local.use_https ? null : aws_lb_target_group.app[0].arn
 
     dynamic "redirect" {
       for_each = local.use_https ? [1] : []
@@ -182,7 +211,7 @@ resource "aws_lb_listener" "http" {
 
 resource "aws_lb_listener" "https" {
   count             = local.use_https ? 1 : 0
-  load_balancer_arn = aws_lb.this.arn
+  load_balancer_arn = aws_lb.this[0].arn
   port              = 443
   protocol          = "HTTPS"
   ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
@@ -190,7 +219,7 @@ resource "aws_lb_listener" "https" {
 
   default_action {
     type             = "forward"
-    target_group_arn = aws_lb_target_group.app.arn
+    target_group_arn = aws_lb_target_group.app[0].arn
   }
 }
 
@@ -222,9 +251,9 @@ resource "aws_ecs_task_definition" "app" {
     environment = [
       { name = "SSM_PARAM_PREFIX", value = var.ssm_prefix },
       { name = "AWS_REGION", value = var.region },
-      { name = "PROXY_HOPS", value = "1" },
+      # Only trust X-Forwarded-For when the ALB is in front.
+      { name = "PROXY_HOPS", value = var.enable_alb ? "1" : "0" },
     ]
-    readonlyRootFilesystem = false
     logConfiguration = {
       logDriver = "awslogs"
       options = {
@@ -265,42 +294,46 @@ resource "aws_ecs_service" "app" {
     assign_public_ip = true # no NAT gateway, so tasks need a public IP to reach ECR
   }
 
-  load_balancer {
-    target_group_arn = aws_lb_target_group.app.arn
-    container_name   = local.container_name
-    container_port   = local.container_port
+  dynamic "load_balancer" {
+    for_each = var.enable_alb ? [1] : []
+    content {
+      target_group_arn = aws_lb_target_group.app[0].arn
+      container_name   = local.container_name
+      container_port   = local.container_port
+    }
   }
 
   depends_on = [aws_lb_listener.http]
 
   lifecycle {
-    ignore_changes = [task_definition] # the deploy pipeline owns this
+    ignore_changes = [task_definition] # deploys own this
   }
 }
 
 # ---------------------------------------------------------------------------
-# Optional DNS: www.<domain> -> ALB
+# Optional DNS: www-<env>.<domain> -> ALB (needs a domain and the ALB)
 # ---------------------------------------------------------------------------
 resource "aws_route53_record" "www" {
-  count   = var.zone_id == "" ? 0 : 1
+  count   = var.enable_alb && var.zone_id != "" ? 1 : 0
   zone_id = var.zone_id
   name    = var.dns_name
   type    = "A"
   alias {
-    name                   = aws_lb.this.dns_name
-    zone_id                = aws_lb.this.zone_id
+    name                   = aws_lb.this[0].dns_name
+    zone_id                = aws_lb.this[0].zone_id
     evaluate_target_health = true
   }
 }
 
 # ---------------------------------------------------------------------------
-# Alarms
+# Alarms (ALB metrics, so only with the ALB)
 # ---------------------------------------------------------------------------
 resource "aws_cloudwatch_metric_alarm" "alb_5xx" {
+  count               = var.enable_alb ? 1 : 0
   alarm_name          = "${var.name}-alb-5xx"
   namespace           = "AWS/ApplicationELB"
   metric_name         = "HTTPCode_Target_5XX_Count"
-  dimensions          = { LoadBalancer = aws_lb.this.arn_suffix }
+  dimensions          = { LoadBalancer = aws_lb.this[0].arn_suffix }
   statistic           = "Sum"
   period              = 300
   evaluation_periods  = 1
@@ -311,12 +344,13 @@ resource "aws_cloudwatch_metric_alarm" "alb_5xx" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "no_healthy_tasks" {
-  alarm_name          = "${var.name}-no-healthy-tasks"
-  namespace           = "AWS/ApplicationELB"
-  metric_name         = "HealthyHostCount"
+  count       = var.enable_alb ? 1 : 0
+  alarm_name  = "${var.name}-no-healthy-tasks"
+  namespace   = "AWS/ApplicationELB"
+  metric_name = "HealthyHostCount"
   dimensions = {
-    LoadBalancer = aws_lb.this.arn_suffix
-    TargetGroup  = aws_lb_target_group.app.arn_suffix
+    LoadBalancer = aws_lb.this[0].arn_suffix
+    TargetGroup  = aws_lb_target_group.app[0].arn_suffix
   }
   statistic           = "Minimum"
   period              = 60

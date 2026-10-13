@@ -1,10 +1,10 @@
 output "state_bucket" {
-  description = "Put this in infra/envs/dev/backend.tf."
+  description = "Put this in infra/envs/*/backend.tf"
   value       = aws_s3_bucket.state.bucket
 }
 
 output "github_actions_role_arn" {
-  description = "Save as the GitHub repository variable AWS_ROLE_ARN."
+  description = "GitHub repository variable AWS_ROLE_ARN"
   value       = aws_iam_role.github_actions.arn
 }
 

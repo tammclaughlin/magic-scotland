@@ -1,25 +1,50 @@
-# Events in Scotland: conventions, lectures, shows.
-#
-# CHANGE_ME_EVENT_DATA: FICTIONAL sample entries - replace with real events.
+# Events in Scotland - ALL FICTIONAL test data.
 # Dates are YYYY-MM-DD. Past events are hidden automatically.
 #
 # Fields: name, start_date, end_date (optional), venue, town, organiser, link
 
-- name: Sample Scottish Magic Convention
+- name: Thistle Circle Close-up Competition
+  start_date: 2026-11-19
+  venue: The Lantern Rooms
+  town: Edinburgh
+  organiser: The Thistle Circle of Conjurors
+
+- name: Clydeside Members' Christmas Show
+  start_date: 2026-12-12
+  venue: Kelvinside Community Hall
+  town: Glasgow
+  organiser: Clydeside Magic Society
+  link: https://example.org/clydeside-magic/christmas-show
+
+- name: Highland Online Lecture - Coin Magic Basics
+  start_date: 2027-01-05
+  venue: Online
+  town: Online
+  organiser: Highland Society of Magicians
+
+- name: Scottish Conjuring Weekend
   start_date: 2027-03-12
   end_date: 2027-03-14
-  venue: CHANGE_ME hotel
+  venue: The Grand Pretend Hotel
   town: Perth
-  organiser: CHANGE_ME organiser
-  link: https://example.org/convention
+  organiser: Scottish clubs (joint)
+  link: https://example.org/scottish-conjuring-weekend
 
-- name: Sample Close-up Lecture Night
-  start_date: 2026-11-18
-  venue: CHANGE_ME venue
-  town: Inverness
-  organiser: Sample Highland Magic Society
+- name: Tayside Charity Magic Show
+  start_date: 2027-04-24
+  venue: Caird Hall Studio
+  town: Dundee
+  organiser: Tayside Order of Wonder
 
-- name: Sample Past Event (hidden)
-  start_date: 2025-01-01
-  venue: Nowhere
-  town: Nowhere
+- name: Granite City Beginners' Workshop
+  start_date: 2027-05-05
+  venue: The Silver Darling Café
+  town: Aberdeen
+  organiser: Granite City Illusionists
+
+# Past event: should never appear on the site (tests check this)
+- name: Autumn Lecture That Already Happened
+  start_date: 2025-10-01
+  venue: The Old Mill Library
+  town: Stirling
+  organiser: Stirling Castle Conjurers' Guild

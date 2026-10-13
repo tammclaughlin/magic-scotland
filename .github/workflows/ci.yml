@@ -32,11 +32,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3 # emulate ARM: the servers are Graviton
       - uses: docker/setup-buildx-action@v3
-      - name: Build image
+      - name: Build ARM image
         uses: docker/build-push-action@v6
         with:
           context: app
+          platforms: linux/arm64
           load: true
           tags: magic-scotland:ci
           cache-from: type=gha
@@ -60,7 +62,7 @@ jobs:
       - run: terraform fmt -check -recursive infra
       - name: Validate each stack (no backend)
         run: |
-          for dir in infra/bootstrap infra/envs/dev; do
+          for dir in infra/bootstrap infra/envs/dev infra/envs/prod; do
             terraform -chdir=$dir init -backend=false -input=false
             terraform -chdir=$dir validate
           done
@@ -93,3 +95,5 @@ jobs:
       - run: ansible-galaxy collection install -r requirements.yml
       - run: ansible-lint site.yml
       - run: ansible-playbook site.yml --syntax-check -i localhost,
+        env:
+          ADMIN_PUBLIC_KEY: ssh-ed25519 AAAA-placeholder-for-syntax-check

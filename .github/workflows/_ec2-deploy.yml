@@ -1,0 +1,127 @@
+name: EC2 deploy (reusable)
+
+# Plain SSH from the GitHub runner:
+#   1. find the server and its security group by tag/name
+#   2. open port 22 to THIS runner's IP only, for the length of the job
+#   3. run Ansible with the CI key (secret SSH_PRIVATE_KEY)
+#   4. always remove the temporary rule, even if the deploy fails
+#
+# Repository variables: AWS_ROLE_ARN, ADMIN_USER, ADMIN_PUBLIC_KEY, CI_PUBLIC_KEY
+# Repository secret:    SSH_PRIVATE_KEY  (private half of ~/.ssh/magic-scotland-ci)
+
+on:
+  workflow_call:
+    inputs:
+      env:
+        required: true
+        type: string
+      app_mode:
+        type: string
+        default: native
+      image_tag:
+        type: string
+        default: latest
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.env }}
+    concurrency: deploy-ec2-${{ inputs.env }}
+    env:
+      AWS_REGION: eu-west-2
+      ENV: ${{ inputs.env }}
+      ADMIN_USER: ${{ vars.ADMIN_USER }}
+      ADMIN_PUBLIC_KEY: ${{ vars.ADMIN_PUBLIC_KEY }}
+      CI_PUBLIC_KEY: ${{ vars.CI_PUBLIC_KEY }}
+      IMAGE_TAG: ${{ inputs.image_tag }}
+      ANSIBLE_FORCE_COLOR: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Find the server
+        id: find
+        run: |
+          ip=$(aws ec2 describe-instances \
+            --filters Name=tag:Project,Values=magic-scotland Name=tag:Env,Values=$ENV \
+                      Name=tag:Role,Values=web Name=instance-state-name,Values=running \
+            --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
+          if [ -z "$ip" ] || [ "$ip" = "None" ]; then
+            echo "::notice::No running $ENV web server - skipping EC2 deploy."
+            echo "found=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          sg=$(aws ec2 describe-security-groups \
+            --filters Name=group-name,Values=magic-scotland-$ENV-web-ec2 \
+            --query 'SecurityGroups[0].GroupId' --output text)
+          echo "found=true" >> "$GITHUB_OUTPUT"
+          echo "ip=$ip" >> "$GITHUB_OUTPUT"
+          echo "sg=$sg" >> "$GITHUB_OUTPUT"
+
+      - name: Open SSH to this runner only
+        id: open
+        if: steps.find.outputs.found == 'true'
+        run: |
+          runner_ip=$(curl -fsS https://checkip.amazonaws.com)
+          rule=$(aws ec2 authorize-security-group-ingress \
+            --group-id ${{ steps.find.outputs.sg }} \
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${runner_ip}/32,Description=github-actions-run-${GITHUB_RUN_ID}}]" \
+            --query 'SecurityGroupRules[0].SecurityGroupRuleId' --output text)
+          echo "rule=$rule" >> "$GITHUB_OUTPUT"
+          echo "Opened port 22 to ${runner_ip}/32 ($rule)"
+
+      - uses: actions/setup-python@v5
+        if: steps.find.outputs.found == 'true'
+        with:
+          python-version: "3.12"
+
+      - name: Install Ansible
+        if: steps.find.outputs.found == 'true'
+        working-directory: ansible
+        run: |
+          pip install ansible-core boto3 botocore
+          ansible-galaxy collection install -r requirements.yml
+
+      - name: Install CI SSH key
+        if: steps.find.outputs.found == 'true'
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/ci
+          chmod 600 ~/.ssh/ci
+
+      - name: Run playbook
+        if: steps.find.outputs.found == 'true'
+        working-directory: ansible
+        run: |
+          ansible-inventory -i inventory/$ENV --graph
+          ansible-playbook -i inventory/$ENV site.yml \
+            -e ansible_user=$ADMIN_USER \
+            -e ansible_ssh_private_key_file=~/.ssh/ci \
+            -e app_mode=${{ inputs.app_mode }}
+
+      - name: Smoke test from outside
+        if: steps.find.outputs.found == 'true'
+        continue-on-error: true # fails by design if web_allowed_cidrs is your IP only
+        run: |
+          for i in $(seq 1 10); do
+            curl -fsS "http://${{ steps.find.outputs.ip }}/healthz" && exit 0
+            sleep 5
+          done
+          exit 1
+
+      - name: Close SSH again
+        if: always() && steps.open.outputs.rule != ''
+        run: |
+          aws ec2 revoke-security-group-ingress \
+            --group-id ${{ steps.find.outputs.sg }} \
+            --security-group-rule-ids ${{ steps.open.outputs.rule }}
+          rm -f ~/.ssh/ci
