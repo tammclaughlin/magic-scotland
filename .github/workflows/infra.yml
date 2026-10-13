@@ -1,0 +1,89 @@
+name: Infrastructure
+
+# Pull request -> terraform plan, posted as a comment
+# Merge to main -> terraform apply, after manual approval on the "dev" environment
+#
+# Repository VARIABLES (Settings > Secrets and variables > Actions > Variables):
+#   AWS_ROLE_ARN          output of infra/bootstrap
+#   TF_VAR_SSH_PUBLIC_KEY, TF_VAR_SSH_ALLOWED_CIDRS (JSON list, e.g. ["203.0.113.10/32"]),
+#   TF_VAR_NOTIFY_EMAIL, TF_VAR_SES_SENDER_EMAIL, TF_VAR_BUDGET_EMAIL,
+#   TF_VAR_DOMAIN_NAME (may be empty), TF_VAR_ENABLE_EC2, TF_VAR_ENABLE_ECS
+
+on:
+  pull_request:
+    paths: ["infra/**", ".github/workflows/infra.yml"]
+  push:
+    branches: [main]
+    paths: ["infra/**", ".github/workflows/infra.yml"]
+  workflow_dispatch:
+
+permissions:
+  id-token: write # OIDC to AWS
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: terraform-dev
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: eu-west-2
+  TF_DIR: infra/envs/dev
+  TF_IN_AUTOMATION: "true"
+  TF_VAR_ssh_public_key: ${{ vars.TF_VAR_SSH_PUBLIC_KEY }}
+  TF_VAR_ssh_allowed_cidrs: ${{ vars.TF_VAR_SSH_ALLOWED_CIDRS }}
+  TF_VAR_notify_email: ${{ vars.TF_VAR_NOTIFY_EMAIL }}
+  TF_VAR_ses_sender_email: ${{ vars.TF_VAR_SES_SENDER_EMAIL }}
+  TF_VAR_budget_email: ${{ vars.TF_VAR_BUDGET_EMAIL }}
+  TF_VAR_domain_name: ${{ vars.TF_VAR_DOMAIN_NAME }}
+  TF_VAR_enable_ec2: ${{ vars.TF_VAR_ENABLE_EC2 || 'true' }}
+  TF_VAR_enable_ecs: ${{ vars.TF_VAR_ENABLE_ECS || 'false' }}
+
+jobs:
+  plan:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.13"
+      - run: terraform -chdir=$TF_DIR init -input=false
+      - id: plan
+        run: terraform -chdir=$TF_DIR plan -input=false -no-color -out=tfplan
+      - name: Comment plan on the PR
+        uses: actions/github-script@v7
+        env:
+          PLAN: ${{ steps.plan.outputs.stdout }}
+        with:
+          script: |
+            const plan = process.env.PLAN.length > 60000
+              ? process.env.PLAN.slice(-60000) : process.env.PLAN;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: "### Terraform plan (dev)\n```\n" + plan + "\n```",
+            });
+
+  apply:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment: dev # add yourself as a required reviewer for manual approval
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.13"
+      - run: terraform -chdir=$TF_DIR init -input=false
+      - run: terraform -chdir=$TF_DIR apply -input=false -auto-approve
+      - name: Show outputs
+        run: terraform -chdir=$TF_DIR output

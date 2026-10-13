@@ -1,0 +1,9 @@
+# Run the container locally: docker compose up --build  ->  http://localhost:8000
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      SECRET_KEY: local-dev-only
+      PROXY_HOPS: "0"

@@ -1,0 +1,25 @@
+# Events in Scotland: conventions, lectures, shows.
+#
+# CHANGE_ME_EVENT_DATA: FICTIONAL sample entries - replace with real events.
+# Dates are YYYY-MM-DD. Past events are hidden automatically.
+#
+# Fields: name, start_date, end_date (optional), venue, town, organiser, link
+
+- name: Sample Scottish Magic Convention
+  start_date: 2027-03-12
+  end_date: 2027-03-14
+  venue: CHANGE_ME hotel
+  town: Perth
+  organiser: CHANGE_ME organiser
+  link: https://example.org/convention
+
+- name: Sample Close-up Lecture Night
+  start_date: 2026-11-18
+  venue: CHANGE_ME venue
+  town: Inverness
+  organiser: Sample Highland Magic Society
+
+- name: Sample Past Event (hidden)
+  start_date: 2025-01-01
+  venue: Nowhere
+  town: Nowhere

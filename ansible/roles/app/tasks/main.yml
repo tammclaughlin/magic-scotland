@@ -1,0 +1,87 @@
+---
+# Native mode: the Flask app in a Python venv, run by Gunicorn under systemd,
+# listening on 127.0.0.1 only (Nginx is the only way in).
+# The code is copied from this repo (no Git credentials needed on the server).
+
+- name: Create app user
+  ansible.builtin.user:
+    name: "{{ app_user }}"
+    system: true
+    shell: /usr/sbin/nologin
+    home: "{{ app_dir }}"
+    create_home: false
+
+- name: Create app directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ app_user }}"
+    group: "{{ app_user }}"
+    mode: "0755"
+  loop:
+    - "{{ app_dir }}"
+    - "{{ app_dir }}/instance"
+    - /etc/magic
+
+- name: Copy application code
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../app/{{ item }}"
+    dest: "{{ app_dir }}/"
+    owner: "{{ app_user }}"
+    group: "{{ app_user }}"
+    mode: u=rwX,g=rX,o=rX
+  loop:
+    - magic
+    - data
+    - wsgi.py
+    - gunicorn.conf.py
+    - requirements.txt
+  notify: Restart app
+
+- name: Record deployed version
+  ansible.builtin.copy:
+    dest: "{{ app_dir }}/VERSION"
+    content: "{{ app_version }}\n"
+    owner: "{{ app_user }}"
+    group: "{{ app_user }}"
+    mode: "0644"
+
+- name: Create virtualenv and install requirements
+  ansible.builtin.pip:
+    requirements: "{{ app_dir }}/requirements.txt"
+    virtualenv: "{{ app_dir }}/venv"
+    virtualenv_command: python3 -m venv
+  become_user: "{{ app_user }}"
+  notify: Restart app
+
+- name: App environment file (settings themselves are read from SSM at start-up)
+  ansible.builtin.template:
+    src: app.env.j2
+    dest: /etc/magic/app.env
+    owner: root
+    group: "{{ app_user }}"
+    mode: "0640"
+  notify: Restart app
+
+- name: systemd unit
+  ansible.builtin.template:
+    src: magic.service.j2
+    dest: /etc/systemd/system/{{ app_name }}.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart app
+
+- name: Stop a docker-mode container if one is running
+  ansible.builtin.command: docker compose -f /opt/magic/compose.yml down
+  args:
+    removes: /opt/magic/compose.yml
+  changed_when: true
+  failed_when: false
+
+- name: Enable and start the app
+  ansible.builtin.systemd_service:
+    name: "{{ app_name }}"
+    state: started
+    enabled: true
+    daemon_reload: true

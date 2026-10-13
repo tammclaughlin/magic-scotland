@@ -1,0 +1,28 @@
+---
+# Let's Encrypt certificate via certbot's Nginx plugin.
+# Needs: domain_name pointing at this server's Elastic IP, port 80 open.
+
+- name: Check the placeholders are filled in
+  ansible.builtin.assert:
+    that:
+      - "'CHANGE_ME' not in letsencrypt_email"
+      - "'CHANGE_ME' not in domain_name"
+    fail_msg: Set domain_name and letsencrypt_email in group_vars/all.yml
+
+- name: Install certbot
+  ansible.builtin.apt:
+    name: [certbot, python3-certbot-nginx]
+    state: present
+
+- name: Obtain certificate (first run only)
+  ansible.builtin.command: >-
+    certbot --nginx --non-interactive --agree-tos --redirect
+    --email {{ letsencrypt_email }} -d {{ domain_name }}
+  args:
+    creates: "/etc/letsencrypt/live/{{ domain_name }}/fullchain.pem"
+
+- name: Renewal timer enabled
+  ansible.builtin.systemd_service:
+    name: certbot.timer
+    state: started
+    enabled: true

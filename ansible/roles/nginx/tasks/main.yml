@@ -1,0 +1,45 @@
+---
+- name: Install Nginx
+  ansible.builtin.apt:
+    name: nginx
+    state: present
+
+- name: Site config
+  ansible.builtin.template:
+    src: magic.conf.j2
+    dest: /etc/nginx/sites-available/magic.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload nginx
+
+- name: Enable site
+  ansible.builtin.file:
+    src: /etc/nginx/sites-available/magic.conf
+    dest: /etc/nginx/sites-enabled/magic.conf
+    state: link
+  notify: Reload nginx
+
+- name: Disable default site
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  notify: Reload nginx
+
+- name: Hide Nginx version
+  ansible.builtin.lineinfile:
+    path: /etc/nginx/nginx.conf
+    regexp: '^\s*#?\s*server_tokens'
+    line: "\tserver_tokens off;"
+    insertafter: 'http \{'
+  notify: Reload nginx
+
+- name: Validate config
+  ansible.builtin.command: nginx -t
+  changed_when: false
+
+- name: Enable Nginx
+  ansible.builtin.systemd_service:
+    name: nginx
+    state: started
+    enabled: true

@@ -1,0 +1,98 @@
+name: Deploy to ECS Fargate
+
+# Build the image, tag it with the commit SHA, push to ECR, scan it,
+# register a new task definition revision and roll the ECS service.
+#
+# Repository VARIABLES: AWS_ROLE_ARN, ECR_REPOSITORY_URL, ECS_CLUSTER,
+#   ECS_SERVICE, ECS_TASK_FAMILY, ECS_SITE_URL, ENABLE_ECS_DEPLOY ("true")
+# Values come from `terraform output` in infra/envs/dev.
+
+on:
+  push:
+    branches: [main]
+    paths: ["app/**", ".github/workflows/deploy-ecs.yml"]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy-ecs
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: eu-west-2
+  CONTAINER_NAME: web
+
+jobs:
+  build-push:
+    # Push images even before ECS exists, so the first `enable_ecs = true` apply has one to run.
+    if: vars.ECR_REPOSITORY_URL != ''
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - uses: aws-actions/amazon-ecr-login@v2
+      - uses: docker/setup-buildx-action@v3
+      - id: meta
+        run: echo "image=${{ vars.ECR_REPOSITORY_URL }}:${{ github.sha }}" >> "$GITHUB_OUTPUT"
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: app
+          push: true
+          platforms: linux/amd64 # CHANGE_ME to linux/arm64 if you choose Graviton
+          tags: |
+            ${{ steps.meta.outputs.image }}
+            ${{ vars.ECR_REPOSITORY_URL }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Scan pushed image
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ steps.meta.outputs.image }}
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+
+  deploy:
+    needs: build-push
+    if: vars.ENABLE_ECS_DEPLOY == 'true'
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Download current task definition
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition "${{ vars.ECS_TASK_FAMILY }}" \
+            --query taskDefinition > task-definition.json
+      - id: render
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-definition.json
+          container-name: ${{ env.CONTAINER_NAME }}
+          image: ${{ needs.build-push.outputs.image }}
+      - name: Deploy and wait for the service to be stable
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render.outputs.task-definition }}
+          cluster: ${{ vars.ECS_CLUSTER }}
+          service: ${{ vars.ECS_SERVICE }}
+          wait-for-service-stability: true
+      - name: Smoke test
+        run: |
+          for i in $(seq 1 12); do
+            curl -fsS "${{ vars.ECS_SITE_URL }}/healthz" && exit 0
+            sleep 5
+          done
+          exit 1

@@ -1,0 +1,4 @@
+-r requirements.txt
+pytest==8.*
+black==25.*
+flake8==7.*

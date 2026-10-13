@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ site_name }}{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="brand" href="{{ url_for('main.index') }}">{{ site_name }}</a>
+      <nav>
+        <a href="{{ url_for('main.index') }}">Clubs</a>
+        <a href="{{ url_for('main.events') }}">Events</a>
+        <a href="{{ url_for('main.contact') }}">Contact</a>
+      </nav>
+    </div>
+  </header>
+  <main class="wrap">
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="site-footer">
+    <div class="wrap">
+      <p>Club details are published with each club's permission.
+        <a href="{{ url_for('main.privacy') }}">Privacy notice</a></p>
+    </div>
+  </footer>
+</body>
+</html>

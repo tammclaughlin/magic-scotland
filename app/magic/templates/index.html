@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Magic clubs and societies in Scotland</h1>
+<p class="lead">Find a club near you, when it meets and who to contact.</p>
+
+{% if clubs %}
+<ul class="cards">
+  {% for club in clubs %}
+  <li class="card">
+    <h2><a href="{{ url_for('main.club', slug=club.slug) }}">{{ club.name }}</a></h2>
+    <p class="meta">{{ club.town }}{% if club.region %}, {{ club.region }}{% endif %}</p>
+    {% if club.meeting %}<p>{{ club.meeting.schedule }} &middot; {{ club.meeting.venue }}</p>{% endif %}
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p>No clubs listed yet.</p>
+{% endif %}
+{% endblock %}

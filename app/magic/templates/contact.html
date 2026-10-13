@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Contact - {{ site_name }}{% endblock %}
+{% block content %}
+<h1>Contact us</h1>
+<p>Want your club listed, a detail corrected, or to reach a club? Send us a message.</p>
+
+{% if failed %}
+<p class="error">Sorry, your message could not be sent just now. Please try again later.</p>
+{% endif %}
+
+<form method="post" action="{{ url_for('main.contact') }}" novalidate>
+  {{ form.hidden_tag() }}
+  {% for field in [form.name, form.email, form.club, form.message] %}
+  <div class="field">
+    {{ field.label }}
+    {{ field(rows=6) if field.type == 'TextAreaField' else field() }}
+    {% for err in field.errors %}<p class="error">{{ err }}</p>{% endfor %}
+  </div>
+  {% endfor %}
+  <div class="hp" aria-hidden="true">
+    {{ form.website.label }} {{ form.website(tabindex="-1", autocomplete="off") }}
+  </div>
+  <p class="small">We use your details only to reply to you. See the <a href="{{ url_for('main.privacy') }}">privacy notice</a>.</p>
+  <button type="submit">Send message</button>
+</form>
+{% endblock %}

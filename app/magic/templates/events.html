@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Events - {{ site_name }}{% endblock %}
+{% block content %}
+<h1>Upcoming events in Scotland</h1>
+{% if events %}
+<table>
+  <thead><tr><th>Date</th><th>Event</th><th>Where</th><th>Organiser</th></tr></thead>
+  <tbody>
+  {% for e in events %}
+    <tr>
+      <td>{{ e.start_date.strftime('%-d %b %Y') }}{% if e.end_date and e.end_date != e.start_date %} &ndash; {{ e.end_date.strftime('%-d %b %Y') }}{% endif %}</td>
+      <td>{% if e.link %}<a href="{{ e.link }}" rel="noopener">{{ e.name }}</a>{% else %}{{ e.name }}{% endif %}</td>
+      <td>{{ e.venue }}{% if e.town %}, {{ e.town }}{% endif %}</td>
+      <td>{{ e.organiser | default('') }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No upcoming events listed.</p>
+{% endif %}
+{% endblock %}

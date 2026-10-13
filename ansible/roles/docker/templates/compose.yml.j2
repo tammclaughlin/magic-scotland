@@ -1,0 +1,17 @@
+# {{ ansible_managed }}
+services:
+  web:
+    image: {{ ecr_repository_url }}:{{ app_image_tag }}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:{{ app_port }}:8000"
+    environment:
+      SSM_PARAM_PREFIX: "{{ ssm_param_prefix }}"
+      AWS_REGION: "{{ aws_region }}"
+      PROXY_HOPS: "1"
+    logging:
+      driver: awslogs
+      options:
+        awslogs-region: "{{ aws_region }}"
+        awslogs-group: "{{ cloudwatch_log_group }}/container"
+        awslogs-create-group: "true"

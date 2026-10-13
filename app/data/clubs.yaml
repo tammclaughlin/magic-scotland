@@ -1,0 +1,57 @@
+# Magic clubs and societies in Scotland.
+#
+# CHANGE_ME_CLUB_DATA: these are FICTIONAL sample entries so the site has
+# something to show. Replace them with real clubs before going public.
+#
+# Only contacts with `consent: true` are shown on the site (UK GDPR).
+# Prefer club role addresses (secretary@club.example) over personal ones.
+#
+# Fields:
+#   name, slug (unique, used in the URL), town, region, description, website
+#   meeting: { schedule, venue, address }
+#   contacts: [ { name, role, email, phone, consent } ]
+
+- name: Sample Highland Magic Society
+  slug: sample-highland-magic-society
+  town: Inverness
+  region: Highland
+  description: Example entry - a friendly club for magicians of all levels.
+  website: https://example.org/highland-magic
+  meeting:
+    schedule: 2nd Tuesday of each month, 7.30pm
+    venue: CHANGE_ME venue name
+    address: CHANGE_ME street, Inverness
+  contacts:
+    - name: CHANGE_ME Secretary Name
+      role: Secretary
+      email: secretary@example.org
+      consent: true
+
+- name: Sample Capital Conjurors
+  slug: sample-capital-conjurors
+  town: Edinburgh
+  region: Lothian
+  description: Example entry - lectures, workshops and a yearly close-up competition.
+  website: https://example.org/capital-conjurors
+  meeting:
+    schedule: Every other Thursday, 7pm
+    venue: CHANGE_ME venue name
+  contacts:
+    - name: CHANGE_ME President Name
+      role: President
+      email: president@example.org
+      consent: true
+    - name: Private Person
+      role: Treasurer
+      email: private@example.org
+      consent: false   # not shown on the site
+
+- name: Sample West Coast Magic Circle
+  slug: sample-west-coast-magic-circle
+  town: Glasgow
+  region: Strathclyde
+  description: Example entry - meetings with a theme each month.
+  meeting:
+    schedule: Last Monday of each month, 7.30pm
+    venue: CHANGE_ME venue name
+  contacts: []

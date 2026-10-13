@@ -1,0 +1,63 @@
+---
+# ---------------------------------------------------------------------------
+# Connection
+#   Laptop:  plain SSH with your key         (default)
+#   CI:      AWS SSM, no SSH port needed     (export ANSIBLE_USE_SSM=1)
+# ---------------------------------------------------------------------------
+use_ssm: "{{ lookup('env', 'ANSIBLE_USE_SSM') == '1' }}"
+ansible_connection: "{{ 'amazon.aws.aws_ssm' if use_ssm | bool else 'ssh' }}"
+ansible_user: "{{ 'ssm-user' if use_ssm | bool else (bootstrap_user if keep_bootstrap_user_login | bool else admin_user) }}"
+ansible_ssh_private_key_file: "~/.ssh/magic-scotland"  # CHANGE_ME if your key is elsewhere
+ansible_aws_ssm_region: "{{ aws_region }}"
+# From `terraform output ansible_ssm_bucket` (GitHub variable ANSIBLE_SSM_BUCKET in CI)
+ansible_aws_ssm_bucket_name: "{{ lookup('env', 'ANSIBLE_SSM_BUCKET') | default('CHANGE_ME_ANSIBLE_SSM_BUCKET', true) }}"
+
+# Default user on the Ubuntu AMI; used until the admin user exists.
+bootstrap_user: ubuntu
+
+# ---------------------------------------------------------------------------
+# Project
+# ---------------------------------------------------------------------------
+project: magic-scotland
+env: dev
+aws_region: eu-west-2
+timezone: Europe/London
+
+# Your named admin account and public key
+# In CI these come from GitHub variables ADMIN_USER and ADMIN_PUBLIC_KEY.
+admin_user: "{{ lookup('env', 'ADMIN_USER') | default('CHANGE_ME_ADMIN_USER', true) }}"  # e.g. tam
+admin_public_key_file: "~/.ssh/magic-scotland.pub"
+admin_public_key: "{{ lookup('env', 'ADMIN_PUBLIC_KEY') if lookup('env', 'ADMIN_PUBLIC_KEY') else lookup('file', admin_public_key_file) }}"
+# Keep the default ubuntu login until you've confirmed admin_user works, then set false.
+keep_bootstrap_user_login: true
+
+# ---------------------------------------------------------------------------
+# App
+#   app_mode: native  -> Python venv + Gunicorn + systemd (phase 4)
+#             docker  -> the same image as ECS, run with Docker Compose (phase 5)
+# ---------------------------------------------------------------------------
+app_mode: native
+app_name: magic
+app_user: magic
+app_dir: /opt/magic
+app_port: 8000
+app_version: "{{ lookup('env', 'GITHUB_SHA') | default('local', true) }}"
+ssm_param_prefix: "/{{ project }}/{{ env }}"
+
+# Docker mode: image in ECR (terraform output ecr_repository_url)
+ecr_repository_url: "{{ lookup('env', 'ECR_REPOSITORY_URL') | default('CHANGE_ME_ECR_REPOSITORY_URL', true) }}"
+app_image_tag: "{{ lookup('env', 'IMAGE_TAG') | default('latest', true) }}"
+
+# ---------------------------------------------------------------------------
+# Web / TLS
+# ---------------------------------------------------------------------------
+# Leave empty to serve plain HTTP on the IP address.
+domain_name: ""                    # CHANGE_ME_DOMAIN, e.g. ec2.magicscotland.example
+enable_tls: "{{ domain_name | length > 0 }}"
+letsencrypt_email: CHANGE_ME_LETSENCRYPT_EMAIL
+
+# ---------------------------------------------------------------------------
+# Logging
+# ---------------------------------------------------------------------------
+cloudwatch_log_group: "/{{ project }}/{{ env }}/ec2"
+cloudwatch_retention_days: 14

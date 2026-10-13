@@ -1,0 +1,10 @@
+# {{ ansible_managed }}
+PermitRootLogin no
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PubkeyAuthentication yes
+MaxAuthTries 3
+LoginGraceTime 30
+X11Forwarding no
+AllowUsers {{ admin_user }}{% if keep_bootstrap_user_login | bool %} {{ bootstrap_user }}{% endif %}
+

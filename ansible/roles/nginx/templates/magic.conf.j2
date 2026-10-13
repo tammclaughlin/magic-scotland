@@ -1,0 +1,37 @@
+# {{ ansible_managed }}
+# Certbot edits this file to add the HTTPS server when TLS is enabled.
+
+limit_req_zone $binary_remote_addr zone=contact:10m rate=10r/m;
+
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name {{ domain_name if domain_name | length > 0 else '_' }};
+
+    client_max_body_size 64k;
+
+    add_header X-Content-Type-Options nosniff always;
+    add_header X-Frame-Options DENY always;
+    add_header Referrer-Policy strict-origin-when-cross-origin always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+
+    gzip on;
+    gzip_types text/css application/javascript application/json;
+
+    location /static/ {
+        proxy_pass http://127.0.0.1:{{ app_port }};
+        expires 7d;
+    }
+
+    location = /contact {
+        limit_req zone=contact burst=5 nodelay;
+        proxy_pass http://127.0.0.1:{{ app_port }};
+        include /etc/nginx/proxy_params;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:{{ app_port }};
+        include /etc/nginx/proxy_params;
+        proxy_read_timeout 30s;
+    }
+}

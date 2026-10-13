@@ -1,0 +1,27 @@
+---
+# CloudWatch agent: ship Nginx, app and auth logs plus memory/disk metrics.
+
+- name: Set package architecture
+  ansible.builtin.set_fact:
+    cw_arch: "{{ 'arm64' if ansible_architecture == 'aarch64' else 'amd64' }}"
+
+- name: Install CloudWatch agent
+  ansible.builtin.apt:
+    deb: "https://amazoncloudwatch-agent.s3.amazonaws.com/ubuntu/{{ cw_arch }}/latest/amazon-cloudwatch-agent.deb"
+    state: present
+
+- name: Agent config
+  ansible.builtin.template:
+    src: config.json.j2
+    dest: /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart cloudwatch agent
+
+- name: Load config and start agent
+  ansible.builtin.command: >-
+    /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl
+    -a fetch-config -m ec2 -s
+    -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
+  changed_when: false

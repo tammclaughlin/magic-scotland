@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}{{ club.name }} - {{ site_name }}{% endblock %}
+{% block content %}
+<p><a href="{{ url_for('main.index') }}">&larr; All clubs</a></p>
+<h1>{{ club.name }}</h1>
+<p class="meta">{{ club.town }}{% if club.region %}, {{ club.region }}{% endif %}</p>
+{% if club.description %}<p>{{ club.description }}</p>{% endif %}
+{% if club.website %}<p><a href="{{ club.website }}" rel="noopener">Club website</a></p>{% endif %}
+
+<h2>When and where they meet</h2>
+{% if club.meeting %}
+<dl class="details">
+  <dt>When</dt><dd>{{ club.meeting.schedule }}</dd>
+  <dt>Where</dt><dd>{{ club.meeting.venue }}{% if club.meeting.address %}, {{ club.meeting.address }}{% endif %}</dd>
+</dl>
+{% else %}
+<p>Meeting details not published - please get in touch with the club.</p>
+{% endif %}
+
+<h2>Contacts</h2>
+{% set public_contacts = club.contacts | default([]) | selectattr('consent') | list %}
+{% if public_contacts %}
+<table>
+  <thead><tr><th>Name</th><th>Role</th><th>Contact</th></tr></thead>
+  <tbody>
+  {% for c in public_contacts %}
+    <tr>
+      <td>{{ c.name }}</td>
+      <td>{{ c.role }}</td>
+      <td>
+        {% if c.email %}<a href="mailto:{{ c.email }}">{{ c.email }}</a>{% endif %}
+        {% if c.phone %}{% if c.email %}<br>{% endif %}{{ c.phone }}{% endif %}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No public contact listed. Use the <a href="{{ url_for('main.contact') }}">contact form</a> and we'll pass your message on.</p>
+{% endif %}
+{% endblock %}

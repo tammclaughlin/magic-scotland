@@ -1,0 +1,52 @@
+:root {
+  --ink: #1d1b26;
+  --muted: #5d5a6b;
+  --accent: #5b2a86;
+  --bg: #faf9fc;
+  --card: #ffffff;
+  --line: #e3e0ea;
+  --error: #b3261e;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink: #ece9f3;
+    --muted: #aaa5b8;
+    --accent: #c9a3f0;
+    --bg: #15131b;
+    --card: #1f1c28;
+    --line: #34303f;
+    --error: #ff8a80;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+}
+.wrap { max-width: 920px; margin: 0 auto; padding: 0 16px; }
+a { color: var(--accent); }
+.site-header { border-bottom: 1px solid var(--line); background: var(--card); }
+.site-header .wrap { display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; align-items: center; padding-top: 14px; padding-bottom: 14px; }
+.brand { font-weight: 700; text-decoration: none; font-size: 1.1rem; }
+nav a { margin-left: 16px; text-decoration: none; }
+nav a:first-child { margin-left: 0; }
+main { padding-top: 24px; padding-bottom: 48px; }
+.lead { color: var(--muted); font-size: 1.1rem; }
+.meta { color: var(--muted); margin-top: -8px; }
+.cards { list-style: none; padding: 0; display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+.card h2 { font-size: 1.15rem; margin: 0 0 12px; }
+table { width: 100%; border-collapse: collapse; background: var(--card); }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.details dt { font-weight: 600; }
+.details dd { margin: 0 0 8px; }
+.field { margin-bottom: 14px; }
+.field label { display: block; font-weight: 600; margin-bottom: 4px; }
+input, textarea { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; font: inherit; background: var(--card); color: var(--ink); }
+button { background: var(--accent); color: #fff; border: 0; border-radius: 6px; padding: 10px 18px; font: inherit; cursor: pointer; }
+.error { color: var(--error); margin: 4px 0; }
+.small { font-size: 0.9rem; color: var(--muted); }
+.hp { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+.site-footer { border-top: 1px solid var(--line); color: var(--muted); font-size: 0.9rem; }

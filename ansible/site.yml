@@ -1,0 +1,58 @@
+---
+# Configure the web server.
+#
+#   ansible-galaxy collection install -r requirements.yml
+#   ansible-playbook site.yml --check --diff     # dry run
+#   ansible-playbook site.yml                    # for real
+#   ansible-playbook site.yml --tags app         # just redeploy the app
+#   ansible-playbook site.yml -e app_mode=docker # switch to the container
+
+- name: Configure magic-scotland web server
+  hosts: role_web
+  become: true
+  gather_facts: true
+
+  pre_tasks:
+    - name: Wait for the instance to accept connections
+      ansible.builtin.wait_for_connection:
+        timeout: 300
+
+    - name: Fail early if placeholders are still set
+      ansible.builtin.assert:
+        that:
+          - "'CHANGE_ME' not in admin_user"
+          - "app_mode != 'docker' or 'CHANGE_ME' not in ecr_repository_url"
+          - "not (use_ssm | bool) or 'CHANGE_ME' not in ansible_aws_ssm_bucket_name"
+        fail_msg: "Fill in the CHANGE_ME values in group_vars/all.yml (see README)."
+
+  roles:
+    - role: common
+      tags: [common]
+    - role: hardening
+      tags: [hardening]
+    - role: app
+      tags: [app]
+      when: app_mode == 'native'
+    - role: docker
+      tags: [docker, app]
+      when: app_mode == 'docker'
+    - role: nginx
+      tags: [nginx]
+    - role: tls
+      tags: [tls]
+      when: enable_tls | bool
+    - role: cloudwatch
+      tags: [cloudwatch]
+
+  post_tasks:
+    - name: Smoke test the site through Nginx
+      ansible.builtin.uri:
+        url: "http://127.0.0.1/healthz"
+        headers:
+          Host: "{{ domain_name if domain_name | length > 0 else 'localhost' }}"
+        status_code: [200, 301]
+      register: smoke
+      retries: 10
+      delay: 3
+      until: smoke.status in [200, 301]
+      tags: [always]
