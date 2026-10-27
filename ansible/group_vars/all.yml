@@ -16,7 +16,7 @@ timezone: Europe/London
 #   GitHub Actions: as admin_user with the CI key (-e ansible_user=... --private-key).
 # ---------------------------------------------------------------------------
 bootstrap_user: ubuntu
-keep_bootstrap_user_login: true
+keep_bootstrap_user_login: false
 ansible_user: "{{ bootstrap_user if keep_bootstrap_user_login | bool else admin_user }}"
 ansible_ssh_private_key_file: "~/.ssh/magic-scotland"
 
@@ -45,6 +45,8 @@ app_mode: native
 app_name: magic
 app_user: magic
 app_dir: /opt/magic
+# Not /etc/magic: on Ubuntu that's libmagic's config file (used by file(1)).
+app_config_dir: /etc/magic-scotland
 app_port: 8000
 app_version: "{{ lookup('env', 'GITHUB_SHA') | default('local', true) }}"
 ssm_param_prefix: "/{{ project }}/{{ env }}"

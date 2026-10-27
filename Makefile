@@ -27,6 +27,9 @@ STATE_BUCKET ?= $(shell terraform -chdir=infra/bootstrap output -raw state_bucke
 GIT_SHA := $(shell git rev-parse --short=12 HEAD 2>/dev/null || echo local)
 
 export AWS_REGION := $(REGION)
+# Credentials left in the shell by a manual `eval $(aws configure export-credentials ...)`
+# would beat AWS_PROFILE; drop them so each target uses exactly the profile it names.
+unexport AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_CREDENTIAL_EXPIRATION
 
 # Terraform (Go SDK) and Ansible (boto3) can't use the login_session that
 # `aws login` writes, so let the AWS CLI resolve the profile (login -> assume
