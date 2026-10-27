@@ -1,4 +1,4 @@
 -r requirements.txt
-pytest==8.*
-black==25.*
+pytest==9.*
+black==26.*
 flake8==7.*
