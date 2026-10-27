@@ -10,6 +10,7 @@
 #   - SES identity for the notification email address
 #   - Account-wide monthly budget alert
 #   - ReadOnlyAccess on the hand-made read-only role (claude-ro), for plans
+#   - Stack-scoped IAM rights for the hand-made change role (claude-rw), for applies
 #
 # This stack keeps its state locally (terraform.tfstate in this folder,
 # git-ignored). Back that file up somewhere safe.
@@ -156,6 +157,107 @@ resource "aws_iam_role_policy_attachment" "readonly" {
   count      = var.readonly_role_name == "" ? 0 : 1
   role       = var.readonly_role_name
   policy_arn = "arn:aws:iam::aws:policy/ReadOnlyAccess"
+}
+
+# The change role (also made by hand) can't touch IAM, but every stack apply
+# creates the instance role, ECS task roles, the app policy and an instance
+# profile. Allow that for magic-scotland-<env>-* names only: this leaves out
+# the GitHub Actions role above (magic-scotland-github-actions, admin) and
+# everything else in the account.
+# Not airtight: a role it creates could still be given a broad inline policy.
+# A permissions boundary on the stack's roles would close that ("Later" item).
+locals {
+  rw_prefixes = [for e in var.environments : "${var.project}-${e}-*"]
+  account_id  = data.aws_caller_identity.current.account_id
+}
+
+data "aws_iam_policy_document" "rw_iam" {
+  statement {
+    sid = "ProjectRoles"
+    actions = [
+      "iam:CreateRole", "iam:DeleteRole", "iam:GetRole", "iam:UpdateRole",
+      "iam:UpdateRoleDescription", "iam:UpdateAssumeRolePolicy",
+      "iam:TagRole", "iam:UntagRole", "iam:ListRoleTags",
+      "iam:ListRolePolicies", "iam:ListAttachedRolePolicies", "iam:ListInstanceProfilesForRole",
+      "iam:PutRolePolicy", "iam:GetRolePolicy", "iam:DeleteRolePolicy", "iam:DetachRolePolicy",
+    ]
+    resources = [for p in local.rw_prefixes : "arn:aws:iam::${local.account_id}:role/${p}"]
+  }
+
+  statement {
+    sid       = "AttachOnlyKnownPolicies"
+    actions   = ["iam:AttachRolePolicy"]
+    resources = [for p in local.rw_prefixes : "arn:aws:iam::${local.account_id}:role/${p}"]
+    condition {
+      test     = "ArnLike"
+      variable = "iam:PolicyARN"
+      values = concat(
+        [
+          "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore",
+          "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy",
+          "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly",
+          "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy",
+        ],
+        [for p in local.rw_prefixes : "arn:aws:iam::${local.account_id}:policy/${p}"],
+      )
+    }
+  }
+
+  statement {
+    sid       = "PassProjectRolesToEc2AndEcs"
+    actions   = ["iam:PassRole"]
+    resources = [for p in local.rw_prefixes : "arn:aws:iam::${local.account_id}:role/${p}"]
+    condition {
+      test     = "StringEquals"
+      variable = "iam:PassedToService"
+      values   = ["ec2.amazonaws.com", "ecs-tasks.amazonaws.com"]
+    }
+  }
+
+  statement {
+    sid = "ProjectPolicies"
+    actions = [
+      "iam:CreatePolicy", "iam:DeletePolicy", "iam:GetPolicy", "iam:GetPolicyVersion",
+      "iam:ListPolicyVersions", "iam:CreatePolicyVersion", "iam:DeletePolicyVersion",
+      "iam:TagPolicy", "iam:UntagPolicy", "iam:ListEntitiesForPolicy",
+    ]
+    resources = [for p in local.rw_prefixes : "arn:aws:iam::${local.account_id}:policy/${p}"]
+  }
+
+  statement {
+    sid = "ProjectInstanceProfiles"
+    actions = [
+      "iam:CreateInstanceProfile", "iam:DeleteInstanceProfile", "iam:GetInstanceProfile",
+      "iam:AddRoleToInstanceProfile", "iam:RemoveRoleFromInstanceProfile",
+      "iam:TagInstanceProfile", "iam:UntagInstanceProfile",
+    ]
+    resources = [for p in local.rw_prefixes : "arn:aws:iam::${local.account_id}:instance-profile/${p}"]
+  }
+
+  # ECS and the ALB (final step) create their service-linked roles on first use.
+  statement {
+    sid       = "ServiceLinkedRolesForEcsAndElb"
+    actions   = ["iam:CreateServiceLinkedRole"]
+    resources = ["*"]
+    condition {
+      test     = "StringEquals"
+      variable = "iam:AWSServiceName"
+      values   = ["ecs.amazonaws.com", "elasticloadbalancing.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_policy" "rw_iam" {
+  count       = var.rw_role_name == "" ? 0 : 1
+  name        = "${var.project}-rw-stack-iam"
+  description = "Lets ${var.rw_role_name} manage the IAM that the dev/prod stacks create"
+  policy      = data.aws_iam_policy_document.rw_iam.json
+}
+
+resource "aws_iam_role_policy_attachment" "rw_iam" {
+  count      = var.rw_role_name == "" ? 0 : 1
+  role       = var.rw_role_name
+  policy_arn = aws_iam_policy.rw_iam[0].arn
 }
 
 # ---------------------------------------------------------------------------
