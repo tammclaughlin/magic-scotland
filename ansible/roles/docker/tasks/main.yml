@@ -70,8 +70,8 @@
 
 - name: Pull and start the container
   ansible.builtin.command: docker compose -f {{ app_dir }}/compose.yml up -d --pull always --remove-orphans
-  register: compose_up
-  changed_when: "'Started' in compose_up.stderr or 'Recreated' in compose_up.stderr"
+  register: docker_compose_up
+  changed_when: "'Started' in docker_compose_up.stderr or 'Recreated' in docker_compose_up.stderr"
 
 - name: Remove old images
   ansible.builtin.command: docker image prune -af --filter "until=168h"

@@ -3,6 +3,7 @@ import json
 import os
 
 import pytest
+from markupsafe import escape
 
 from magic import create_app, data
 
@@ -38,7 +39,8 @@ def test_index_lists_clubs(client):
     resp = client.get("/")
     assert resp.status_code == 200
     for club in data.get_clubs():
-        assert club["name"].encode() in resp.data
+        # Jinja autoescapes, e.g. "Conjurers' Guild" -> "Conjurers&#39; Guild"
+        assert escape(club["name"]).encode() in resp.data
 
 
 def test_club_page_hides_contacts_without_consent(client):

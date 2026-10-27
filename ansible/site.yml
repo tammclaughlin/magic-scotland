@@ -31,7 +31,7 @@
           register: caller
           delegate_to: localhost
           become: false
-          run_once: true
+          run_once: true # noqa: run-once[task] - linear strategy, so this really runs once
 
         - name: Set ECR repository URL
           ansible.builtin.set_fact:

@@ -1,17 +1,28 @@
 version: 2
+# One grouped PR per ecosystem instead of one per package.
 updates:
   - package-ecosystem: pip
     directory: /app
     schedule:
       interval: weekly
+    groups:
+      python-packages:
+        patterns: ["*"]
   - package-ecosystem: docker
     directory: /app
     schedule:
       interval: weekly
+    ignore:
+      # Python 3.12 is a project decision (matches the Makefile's PYTHON); patch updates only.
+      - dependency-name: python
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
   - package-ecosystem: terraform
     directories: [/infra/envs/dev, /infra/envs/prod, /infra/bootstrap]
     schedule:

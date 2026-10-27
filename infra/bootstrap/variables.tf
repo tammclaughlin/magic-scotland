@@ -29,6 +29,12 @@ variable "create_github_oidc_provider" {
   default     = true
 }
 
+variable "readonly_role_name" {
+  description = "Existing IAM role used for read-only plans; gets ReadOnlyAccess. \"\" to skip."
+  type        = string
+  default     = "claude-ro"
+}
+
 variable "notify_email" {
   description = "Address that receives (and sends) contact-form notifications."
   type        = string

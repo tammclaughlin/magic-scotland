@@ -33,7 +33,8 @@ AWS profiles in `~/.aws/config`. The Makefile uses:
 | Profile | Used for |
 | --- | --- |
 | `claude-ro` | `preflight`, `init`, `plan`, `outputs`, `inventory`, Ansible (it only looks up the server) |
-| `claude-rw` | `bootstrap`, `apply`, `destroy`, `push-image`, `promote`, `deploy-ecs` |
+| `claude-rw` | `apply`, `destroy`, `push-image`, `promote`, `deploy-ecs` |
+| `tam-admin` | `bootstrap` (creates IAM and a budget, which `claude-rw` can't) |
 
 Different names? Use `make plan RO=my-ro-profile RW=my-rw-profile`, or edit the top of the Makefile.
 
@@ -92,7 +93,7 @@ STATE_BUCKET=magic-scotland-tfstate-<account id> make preflight
 Then:
 
 ```bash
-make bootstrap     # claude-rw; note the outputs
+make bootstrap     # tam-admin; note the outputs
 ```
 
 - Click the **SES verification email** AWS sends to your Gmail.

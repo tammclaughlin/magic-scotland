@@ -51,6 +51,7 @@
     requirements: "{{ app_dir }}/requirements.txt"
     virtualenv: "{{ app_dir }}/venv"
     virtualenv_command: python3 -m venv
+  become: true
   become_user: "{{ app_user }}"
   notify: Restart app
 
@@ -63,7 +64,7 @@
     mode: "0640"
   notify: Restart app
 
-- name: systemd unit
+- name: Install the systemd unit
   ansible.builtin.template:
     src: magic.service.j2
     dest: /etc/systemd/system/{{ app_name }}.service
