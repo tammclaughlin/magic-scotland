@@ -21,7 +21,7 @@
   loop:
     - "{{ app_dir }}"
     - "{{ app_dir }}/instance"
-    - /etc/magic
+    - "{{ app_config_dir }}"
 
 - name: Copy application code
   ansible.builtin.copy:
@@ -58,7 +58,7 @@
 - name: App environment file (settings themselves are read from SSM at start-up)
   ansible.builtin.template:
     src: app.env.j2
-    dest: /etc/magic/app.env
+    dest: "{{ app_config_dir }}/app.env"
     owner: root
     group: "{{ app_user }}"
     mode: "0640"
