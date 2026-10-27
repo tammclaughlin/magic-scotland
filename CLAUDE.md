@@ -17,7 +17,7 @@ sysadmin experience, so skip the basics and be direct.
 - **Read-only AWS is fine**, and only with the `claude-ro` profile: `AWS_PROFILE=claude-ro`,
   e.g. `make preflight`, `make plan`, `make outputs`, `make inventory`, `make ecs-url`,
   `aws ... describe|list|get`. Never use `claude-rw`. If the session has expired, ask
-  Tam to run `aws login --profile claude-ro`.
+  Tam to run `aws login --profile tam` (claude-ro/rw/tam-admin assume roles from that session).
 - **Never commit or print secrets.** `terraform.tfvars` files (they hold Tam's email and IP),
   `*.tfstate`, and the private keys `~/.ssh/magic-scotland*` stay out of Git.
   Check `git status` before any commit.
@@ -41,7 +41,7 @@ sysadmin experience, so skip the basics and be direct.
 | CI → AWS | GitHub OIDC role (AdministratorAccess for now; trust limited to the repo) |
 | CI → server | **Plain SSH** with a separate CI key; port 22 opened to the runner's /32 during a deploy, always closed after |
 | AWS account | **Existing**, with a few resources: `make preflight` before bootstrap |
-| Local AWS | `~/.aws/config` profiles `claude-ro` (read/plan) and `claude-rw` (changes, Tam only) |
+| Local AWS | `~/.aws/config`: `tam` (`aws login`), and roles assumed from it: `claude-ro` (read/plan, ReadOnlyAccess), `claude-rw` (changes, Tam only, no IAM/billing), `tam-admin` (bootstrap) |
 | Budget | $20/month alert, account-wide (in bootstrap) |
 | Git | Local repo `/home/tam/gitrepos/magic-scotland`, GitHub `tammclaughlin/magic-scotland`, branch `main` |
 
@@ -55,7 +55,7 @@ infra/envs/       dev/, prod/: call modules/stack; bucket passed at init (-backe
 ansible/          site.yml, roles, inventory/{dev,prod} (aws_ec2 plugin by tags)
 scripts/          preflight.sh (read-only account check), ecs-deploy.sh, ecs-url.sh
 .github/          ci, infra (plan PR / apply dev→prod), deploy-ec2, deploy-ecs, destroy
-Makefile          ENV=dev|prod, RO=claude-ro, RW=claude-rw
+Makefile          ENV=dev|prod, RO=claude-ro, RW=claude-rw, ADMIN=tam-admin
 ```
 
 Resource names follow `magic-scotland-<env>`, with tags `Project=magic-scotland`, `Env`, `Role=web`.
@@ -66,21 +66,24 @@ Code was written in a cloud session where Terraform, Ansible and pytest couldn't
 **none of it has been executed for real yet**. Expect to fix small issues as each step runs.
 
 - [x] Repo pushed to GitHub (`main`)
-- [ ] 1. Check tools: terraform ≥ 1.10, aws CLI v2, ansible-core + boto3, docker buildx, jq
-- [ ] 2. `make venv && make test && make run`; `make fmt`; check the first CI run in GitHub Actions
+- [x] 1. Check tools: terraform ≥ 1.10, aws CLI v2, ansible-core + boto3, docker buildx, jq
+- [x] 2. `make venv && make test && make run`; `make fmt`; check the first CI run in GitHub Actions
       (Infrastructure is expected to fail until GitHub variables exist)
-- [ ] 3. Fill in placeholders (`grep -rn CHANGE_ME .`):
+- [x] 3. Fill in placeholders (`grep -rn CHANGE_ME .`):
       - `infra/bootstrap/terraform.tfvars`: `github_repo = "magic-scotland"`, `state_bucket_name`
       - `infra/envs/{dev,prod}/terraform.tfvars`: `ssh_public_key`, `ssh_allowed_cidrs`
       - `ansible/group_vars/all.yml`: `admin_user` (tam)
       - `make keys` creates `~/.ssh/magic-scotland` (admin) and `~/.ssh/magic-scotland-ci`
-- [ ] 4. `aws login --profile claude-ro`, then `STATE_BUCKET=magic-scotland-tfstate-<acct> make preflight`.
+- [x] 4. `aws login --profile tam`, then `STATE_BUCKET=tm-magic-scotland-tfstate make preflight`.
       Review clashes (likely an existing GitHub OIDC provider → `create_github_oidc_provider = false`),
       quotas, and what's already running
-- [ ] 5. Tam: `make bootstrap`, then click the SES verification email
+- [x] 5. Tam: `make bootstrap`, then click the SES verification email. Done 14 Oct; state bucket
+      `tm-magic-scotland-tfstate`. Re-run after the `fix/ci-and-local-creds` merge to give claude-ro ReadOnlyAccess
 - [ ] 6. GitHub settings: dev/prod environments (prod reviewer), branch protection, variables
-      and the `SSH_PRIVATE_KEY` secret (README section 7)
-- [ ] 7. dev: `make init plan` (Claude can run these with claude-ro) → Tam: `make apply`
+      and the `SSH_PRIVATE_KEY` secret (README section 7). All done except branch protection.
+      `infra.yml`, `deploy-ec2.yml`, `deploy-ecs.yml` are disabled until step 8 works locally;
+      then `gh workflow enable` them
+- [ ] 7. dev: Tam: `make init plan` (claude-ro), then `make apply`
 - [ ] 8. Tam: `make deploy-ec2 ENV=dev` (first run as ubuntu), check the site, then
       `keep_bootstrap_user_login: false`
 - [ ] 9. Containers: Tam: `make push-image`, `enable_ecs = true`, `make apply`; `make ecs-url`
@@ -91,6 +94,10 @@ Code was written in a cloud session where Terraform, Ansible and pytest couldn't
 Update this checklist as steps are completed.
 
 ## Known risks to watch
+
+- `aws login` writes a `login_session` that Terraform (Go SDK) and boto3 can't read. The Makefile
+  wraps those targets in `$(call as,PROFILE)` (`aws configure export-credentials`). Running
+  `terraform` by hand needs `eval "$(aws configure export-credentials --profile X --format env)"` first.
 
 - Terraform files weren't `terraform validate`d when written. Run `make fmt` and fix whatever
   `terraform validate` reports.

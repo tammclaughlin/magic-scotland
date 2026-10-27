@@ -9,6 +9,9 @@ github_repo       = "CHANGE_ME_GITHUB_REPO"
 create_github_oidc_provider = true
 create_ses_identity         = true
 
+# Existing read-only role that make init/plan use; "" to leave it alone
+readonly_role_name = "claude-ro"
+
 notify_email       = "you@example.com"
 budget_email       = "you@example.com"
 monthly_budget_usd = 20

@@ -1,7 +1,7 @@
 # Account-level, one-off bootstrap. Run ONCE from your laptop:
 #
 #   make preflight            # read-only check of the account first
-#   make bootstrap            # uses the claude-rw profile
+#   make bootstrap            # uses the tam-admin profile (needs IAM + budgets)
 #
 # Creates the things that exist once per account, shared by dev and prod:
 #   - S3 bucket for Terraform state (both environments)
@@ -9,6 +9,7 @@
 #   - IAM role that GitHub Actions assumes
 #   - SES identity for the notification email address
 #   - Account-wide monthly budget alert
+#   - ReadOnlyAccess on the hand-made read-only role (claude-ro), for plans
 #
 # This stack keeps its state locally (terraform.tfstate in this folder,
 # git-ignored). Back that file up somewhere safe.
@@ -145,6 +146,16 @@ resource "aws_iam_role" "github_actions" {
 resource "aws_iam_role_policy_attachment" "github_admin" {
   role       = aws_iam_role.github_actions.name
   policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
+}
+
+# The read-only role (made by hand, outside Terraform) only has ViewOnlyAccess,
+# which can list things but not read the state bucket or the details Terraform
+# refreshes. ReadOnlyAccess adds those reads. It still can't kms:Decrypt, so
+# SecureString parameter values stay hidden.
+resource "aws_iam_role_policy_attachment" "readonly" {
+  count      = var.readonly_role_name == "" ? 0 : 1
+  role       = var.readonly_role_name
+  policy_arn = "arn:aws:iam::aws:policy/ReadOnlyAccess"
 }
 
 # ---------------------------------------------------------------------------

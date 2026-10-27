@@ -21,7 +21,7 @@ ansible_user: "{{ bootstrap_user if keep_bootstrap_user_login | bool else admin_
 ansible_ssh_private_key_file: "~/.ssh/magic-scotland"
 
 # Your admin account on the servers. In CI these come from GitHub variables.
-admin_user: "{{ lookup('env', 'ADMIN_USER') | default('CHANGE_ME_ADMIN_USER', true) }}"  # e.g. tam
+admin_user: "{{ lookup('env', 'ADMIN_USER') | default('tam', true) }}"  # e.g. tam
 admin_public_key_file: "~/.ssh/magic-scotland.pub"
 admin_public_key: >-
   {{ lookup('env', 'ADMIN_PUBLIC_KEY')

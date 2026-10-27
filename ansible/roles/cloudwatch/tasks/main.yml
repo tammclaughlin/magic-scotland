@@ -3,11 +3,11 @@
 
 - name: Set package architecture
   ansible.builtin.set_fact:
-    cw_arch: "{{ 'arm64' if ansible_architecture == 'aarch64' else 'amd64' }}"
+    cloudwatch_arch: "{{ 'arm64' if ansible_architecture == 'aarch64' else 'amd64' }}"
 
 - name: Install CloudWatch agent
   ansible.builtin.apt:
-    deb: "https://amazoncloudwatch-agent.s3.amazonaws.com/ubuntu/{{ cw_arch }}/latest/amazon-cloudwatch-agent.deb"
+    deb: "https://amazoncloudwatch-agent.s3.amazonaws.com/ubuntu/{{ cloudwatch_arch }}/latest/amazon-cloudwatch-agent.deb"
     state: present
 
 - name: Agent config
