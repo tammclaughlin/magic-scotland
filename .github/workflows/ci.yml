@@ -16,8 +16,8 @@ jobs:
       run:
         working-directory: app
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -31,11 +31,11 @@ jobs:
     name: Docker - build and scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-qemu-action@v3 # emulate ARM: the servers are Graviton
-      - uses: docker/setup-buildx-action@v3
+      - uses: actions/checkout@v7
+      - uses: docker/setup-qemu-action@v4 # emulate ARM: the servers are Graviton
+      - uses: docker/setup-buildx-action@v4
       - name: Build ARM image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: app
           platforms: linux/arm64
@@ -55,8 +55,8 @@ jobs:
     name: Terraform - fmt, validate, lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
+      - uses: actions/checkout@v7
+      - uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: "~1.16"
       - run: terraform fmt -check -recursive infra
@@ -66,7 +66,7 @@ jobs:
             terraform -chdir=$dir init -backend=false -input=false
             terraform -chdir=$dir validate
           done
-      - uses: terraform-linters/setup-tflint@v4
+      - uses: terraform-linters/setup-tflint@v6
       - name: tflint
         working-directory: infra
         run: |
@@ -87,8 +87,8 @@ jobs:
       run:
         working-directory: ansible
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - run: pip install ansible-core ansible-lint boto3 botocore

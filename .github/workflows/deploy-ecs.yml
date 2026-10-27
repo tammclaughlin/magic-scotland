@@ -23,8 +23,8 @@ jobs:
     outputs:
       pushed: ${{ steps.repo.outputs.exists }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: aws-actions/configure-aws-credentials@v4
+      - uses: actions/checkout@v7
+      - uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
@@ -41,13 +41,13 @@ jobs:
           echo "url=$url" >> "$GITHUB_OUTPUT"
       - uses: aws-actions/amazon-ecr-login@v2
         if: steps.repo.outputs.exists == 'true'
-      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-qemu-action@v4
         if: steps.repo.outputs.exists == 'true'
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
         if: steps.repo.outputs.exists == 'true'
       - name: Build and push (linux/arm64 for Graviton)
         if: steps.repo.outputs.exists == 'true'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: app
           push: true
