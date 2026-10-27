@@ -11,6 +11,8 @@ create_ses_identity         = true
 
 # Existing read-only role that make init/plan use; "" to leave it alone
 readonly_role_name = "claude-ro"
+# Existing change role that make apply uses; gets IAM rights for magic-scotland-<env>-* only
+rw_role_name = "claude-rw"
 
 notify_email       = "you@example.com"
 budget_email       = "you@example.com"

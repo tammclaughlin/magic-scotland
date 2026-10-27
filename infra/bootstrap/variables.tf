@@ -35,6 +35,18 @@ variable "readonly_role_name" {
   default     = "claude-ro"
 }
 
+variable "rw_role_name" {
+  description = "Existing IAM role used for applies; gets IAM rights scoped to the stacks. \"\" to skip."
+  type        = string
+  default     = "claude-rw"
+}
+
+variable "environments" {
+  description = "Environments whose IAM names (<project>-<env>-*) the change role may manage."
+  type        = list(string)
+  default     = ["dev", "prod"]
+}
+
 variable "notify_email" {
   description = "Address that receives (and sends) contact-form notifications."
   type        = string
