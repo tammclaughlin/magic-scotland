@@ -83,10 +83,11 @@ Code was written in a cloud session where Terraform, Ansible and pytest couldn't
       and the `SSH_PRIVATE_KEY` secret (README section 7). All done except branch protection.
       `infra.yml`, `deploy-ec2.yml`, `deploy-ecs.yml` are disabled until step 8 works locally;
       then `gh workflow enable` them
-- [ ] 7. dev: Tam: `make init plan` (claude-ro), then `make apply`
-- [ ] 8. Tam: `make deploy-ec2 ENV=dev` (first run as ubuntu), check the site, then
+- [x] 7. dev: Tam: `make init plan` (claude-ro), then `make apply` (needed `RW=tam-admin`: claude-rw
+      has no IAM rights yet)
+- [x] 8. Tam: `make deploy-ec2 ENV=dev` (first run as ubuntu), check the site, then
       `keep_bootstrap_user_login: false`
-- [ ] 9. Containers: Tam: `make push-image`, `enable_ecs = true`, `make apply`; `make ecs-url`
+- [x] 9. Containers: Tam: `make push-image`, `enable_ecs = true`, `make apply`; `make ecs-url`
 - [ ] 10. prod: same as 7–9 with `ENV=prod`; `make promote`
 - [ ] 11. Final step: `enable_alb = true` in dev, then prod
 - [ ] Later: scope down the GitHub role; decide on locking `web_allowed_cidrs` to Tam's IP

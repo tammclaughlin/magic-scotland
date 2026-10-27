@@ -16,7 +16,7 @@ timezone: Europe/London
 #   GitHub Actions: as admin_user with the CI key (-e ansible_user=... --private-key).
 # ---------------------------------------------------------------------------
 bootstrap_user: ubuntu
-keep_bootstrap_user_login: true
+keep_bootstrap_user_login: false
 ansible_user: "{{ bootstrap_user if keep_bootstrap_user_login | bool else admin_user }}"
 ansible_ssh_private_key_file: "~/.ssh/magic-scotland"
 
