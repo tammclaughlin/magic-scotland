@@ -55,7 +55,7 @@ grep -rn CHANGE_ME --exclude-dir=.git .
 | `infra/envs/dev/terraform.tfvars`, `infra/envs/prod/terraform.tfvars` | SSH public key, your IP |
 | `ansible/group_vars/all.yml` | `admin_user` (your login name on the servers) |
 
-Your email (tam.mclaughlin@gmail.com) is already filled in. The `terraform.tfvars` files are
+Your email (xxxxx) is already filled in. The `terraform.tfvars` files are
 git-ignored, so your email and IP never reach the repo. The playbook refuses to run while
 `admin_user` is still a placeholder.
 
