@@ -1,0 +1,24 @@
+# Run the same two containers as the Fargate task, on your machine:
+#   make run   ->   http://localhost:8080   (through nginx)
+#
+# network_mode "service:web" puts nginx into web's network namespace, the way the
+# containers in a Fargate task share one. So nginx reaches Gunicorn on 127.0.0.1:8000,
+# and the published port has to sit on web, the owner of that namespace.
+services:
+  web:
+    build: ../app            # the existing app image, unchanged
+    image: magic-lab-app
+    ports:
+      - "8080:80"
+    environment:
+      BIND: 127.0.0.1:8000   # Gunicorn: only reachable from inside the "task"
+      SECRET_KEY: local-dev-only
+      PROXY_HOPS: "1"
+
+  nginx:
+    build: ./nginx
+    image: magic-lab-nginx
+    network_mode: "service:web"
+    depends_on:
+      web:
+        condition: service_healthy
